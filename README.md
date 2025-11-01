@@ -57,7 +57,7 @@ Our set up uses a Raspberry Pi 5 with Bookworm 64-bit.
 # Change to the home directory.
 cd ~
 # Clone the repository.
-git clone https://github.com/wnccnasa/PodCam.git
+git clone https://github.com/itinstructor/PodCam.git
 ```
 
 4. Create a virtual environment.
@@ -68,19 +68,17 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-5. Update pip.
+5. Upgrade pip.
 
 ```bash
 python -m pip install --upgrade pip
 ```
 
-6. Install requests for ThingSpeak uploads.
+6. Install requests for ThingSpeak uploads and Sensor Libraries
 
 ```bash
 pip install requests bme680
 ```
-
-7. Install sensor libraries
 
 8. Install sensor_ts.service
 
