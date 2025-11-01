@@ -10,6 +10,9 @@ import smtplib
 import logging
 import sys
 import re
+import json
+import hashlib
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -102,11 +105,69 @@ class EmailNotifier:
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
 
+        # State file for simple de-duplication across runs
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        logs_dir = os.path.join(script_dir, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        self._state_file = os.path.join(logs_dir, "email_send_state.json")
+
         # Validate email configuration
         if "@" not in self.sender_email or "gmail.com" not in self.sender_email:
             logger.warning("Sender email may not be a valid Gmail address")
 
         logger.info(f"Email notifier initialized for {self.sender_email}")
+
+    # -------------------------- DEDUP HELPERS --------------------------- #
+    def _load_send_state(self):
+        """Load last-send state from disk."""
+        try:
+            if os.path.exists(self._state_file):
+                with open(self._state_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception as e:
+            logger.warning(f"Could not read send state: {e}")
+        return {}
+
+    def _save_send_state(self, state: dict):
+        """Persist last-send state to disk."""
+        try:
+            with open(self._state_file, "w", encoding="utf-8") as f:
+                json.dump(state, f)
+        except Exception as e:
+            logger.warning(f"Could not write send state: {e}")
+
+    def _content_checksum(self, content: str) -> str:
+        """Return a stable checksum for content used to detect duplicates."""
+        try:
+            return hashlib.sha256(content.encode("utf-8")).hexdigest()
+        except Exception:
+            # Fallback minimal checksum
+            return str(abs(hash(content)))
+
+    def _should_send_dedup(self, kind: str, checksum: str, min_interval_sec: int = 300) -> bool:
+        """Decide whether to send based on recent history.
+
+        - Send if content changed (checksum differs)
+        - Or if last send was more than min_interval_sec seconds ago
+        """
+        state = self._load_send_state()
+        now = int(time.time())
+        last = state.get(kind, {})
+        last_checksum = last.get("checksum")
+        last_ts = int(last.get("timestamp", 0))
+
+        if last_checksum != checksum:
+            return True
+        if now - last_ts > min_interval_sec:
+            return True
+
+        return False
+
+    def _record_send(self, kind: str, checksum: str):
+        """Record that we sent a message of given kind."""
+        state = self._load_send_state()
+        state[kind] = {"checksum": checksum, "timestamp": int(time.time())}
+        self._save_send_state(state)
 
     def _load_html_template(self, template_name):
         """
@@ -120,7 +181,7 @@ class EmailNotifier:
         """
         try:
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            template_path = os.path.join(script_dir, HTML_TEMPLATE_DIR, template_name)
+            template_path = os.path.join(script_dir, "html_templates", template_name)
             
             if os.path.exists(template_path):
                 with open(template_path, 'r', encoding='utf-8') as f:
@@ -271,7 +332,7 @@ class EmailNotifier:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # Create HTML version using template
-            html_template = self._load_html_template(ALERT_EMAIL_TEMPLATE)
+            html_template = self._load_html_template("alert_email.html")
             html_message = None
             
             if html_template:
@@ -542,9 +603,27 @@ class EmailNotifier:
 </html>
 """
 
-            return self.send_email(
+            # De-dup within a short window to avoid double sends
+            try:
+                checksum = self._content_checksum(subject + "\n" + html_message)
+                if not self._should_send_dedup("status_report", checksum, min_interval_sec=300):
+                    logger.info("Skipping duplicate status report within 5 minutes window")
+                    return True  # Treat as success to avoid retries/escalations
+            except Exception as e:
+                logger.warning(f"Dedup check failed, proceeding to send: {e}")
+
+            sent = self.send_email(
                 recipient_email, subject, html_message
             )
+
+            if sent:
+                # Only record on successful send
+                try:
+                    self._record_send("status_report", checksum)
+                except Exception as e:
+                    logger.debug(f"Could not record send state: {e}")
+
+            return sent
 
         except Exception as e:
             logger.error(f"Error sending status report: {e}")

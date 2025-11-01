@@ -84,6 +84,8 @@ TS_KEY = api_key_ts.THINGSPEAK_API_KEY
 # Global variables for email scheduling and water level tracking
 # Track last sent date per scheduled time (keyed by 'HH:MM')
 last_daily_email_dates = {}
+# Track what 'next scheduled' message we've already logged to avoid spam
+last_announced_next_email = None
 previous_water_level = None
 
 # Create ThingSpeak data dictionary
@@ -191,50 +193,109 @@ def get_current_sensor_data_for_email(temp_f, humidity, pressure_inhg):
 
 
 def should_send_daily_email():
-    """Check if it's time to send the daily summary email."""
+    """Determine if it's time to send the daily summary email.
+
+    Rule: Do NOT catch up on missed times. Only send at the next
+    upcoming configured time (for today). If all today's times are
+    already past, wait until tomorrow.
+
+    Returns a list with at most one time string when it's due now.
+    """
 
     global last_daily_email_dates
 
     if not ENABLE_SCHEDULED_EMAILS:
-        return False
+        return []
 
-    current_date = datetime.now().date()
-    current_time = datetime.now().time()
+    now = datetime.now()
+    current_date = now.date()
+    current_time = now.time()
 
     # Normalize configured times into a list of 'HH:MM' strings
     scheduled_times = []
     if isinstance(DAILY_EMAIL_TIME, list):
         scheduled_times = DAILY_EMAIL_TIME
     elif isinstance(DAILY_EMAIL_TIME, str):
-        # allow comma-separated string like "06:00,18:00"
         if "," in DAILY_EMAIL_TIME:
-            scheduled_times = [
-                t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()
-            ]
+            scheduled_times = [t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()]
         else:
             scheduled_times = [DAILY_EMAIL_TIME.strip()]
     else:
-        # unexpected type - fallback to string conversion
         scheduled_times = [str(DAILY_EMAIL_TIME)]
 
-    due_times = []
+    # Find the earliest configured time that is >= now (today's next upcoming)
+    upcoming_candidates = []
     for t in scheduled_times:
         try:
             h, m = map(int, t.split(":"))
+            scheduled_t = current_time.replace(hour=h, minute=m, second=0, microsecond=0)
         except Exception:
-            # skip invalid entries
             continue
 
-        scheduled_time = current_time.replace(
-            hour=h, minute=m, second=0, microsecond=0
-        )
+        if scheduled_t >= current_time:
+            upcoming_candidates.append((t, scheduled_t))
 
-        # If we haven't sent for this scheduled time today and current time is past it
-        last_sent_date = last_daily_email_dates.get(t)
-        if last_sent_date != current_date and current_time >= scheduled_time:
-            due_times.append(t)
+    if not upcoming_candidates:
+        # All scheduled times for today are already past; do not catch up
+        # Wait until tomorrow's first time
+        return []
 
-    return due_times
+    # Select the next upcoming (smallest time >= now)
+    next_t, next_time = min(upcoming_candidates, key=lambda x: x[1])
+
+    # If we haven't sent for this time today and we've reached/passed the time, send
+    last_sent_date = last_daily_email_dates.get(next_t)
+    if last_sent_date != current_date and current_time >= next_time:
+        return [next_t]
+
+    return []
+
+
+def get_next_daily_email_time():
+    """Compute the next scheduled time and whether it's today or tomorrow.
+
+    Returns:
+        tuple[str, str] | None: (time_str 'HH:MM', 'today'|'tomorrow') or None if misconfigured
+    """
+    try:
+        now = datetime.now()
+        current_time = now.time()
+
+        # Normalize configured times
+        if isinstance(DAILY_EMAIL_TIME, list):
+            scheduled_times = DAILY_EMAIL_TIME
+        elif isinstance(DAILY_EMAIL_TIME, str):
+            if "," in DAILY_EMAIL_TIME:
+                scheduled_times = [t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()]
+            else:
+                scheduled_times = [DAILY_EMAIL_TIME.strip()]
+        else:
+            scheduled_times = [str(DAILY_EMAIL_TIME)]
+
+        # Parse all as times
+        parsed = []
+        for t in scheduled_times:
+            try:
+                h, m = map(int, t.split(":"))
+            except Exception:
+                continue
+            parsed.append((t, current_time.replace(hour=h, minute=m, second=0, microsecond=0)))
+
+        if not parsed:
+            return None
+
+        # Next upcoming today
+        upcoming = [(t, tt) for (t, tt) in parsed if tt >= current_time]
+        if upcoming:
+            next_t, _ = min(upcoming, key=lambda x: x[1])
+            return next_t, "today"
+
+        # Otherwise earliest tomorrow
+        next_t, _ = min(parsed, key=lambda x: x[1])
+        return next_t, "tomorrow"
+
+    except Exception:
+        return None
 
 
 def send_daily_summary_email(
@@ -244,7 +305,6 @@ def send_daily_summary_email(
     scheduled_time=None,
 ):
     """Send daily summary email."""
-    global last_daily_email_date
 
     try:
         logger.info("📧 Sending daily summary email")
@@ -283,6 +343,16 @@ def main():
     initial_reading_sent = False
 
     try:
+        # On startup, log next scheduled daily email time once
+        if ENABLE_SCHEDULED_EMAILS:
+            try:
+                nxt = get_next_daily_email_time()
+                if nxt:
+                    t_str, when = nxt
+                    logger.info(f"Next daily email scheduled for {t_str} ({when})")
+            except Exception:
+                pass
+
         while True:
             # Check for scheduled emails before sensor readings
             if ENABLE_SCHEDULED_EMAILS:
@@ -301,6 +371,28 @@ def main():
                             current_pressure_inhg,
                             scheduled_time=scheduled_time,
                         )
+
+                    # After sending, announce the next schedule time
+                    try:
+                        nxt = get_next_daily_email_time()
+                        if nxt:
+                            t_str, when = nxt
+                            logger.info(f"Next daily email scheduled for {t_str} ({when})")
+                    except Exception:
+                        pass
+                else:
+                    # Periodically announce only when it changes
+                    try:
+                        global last_announced_next_email
+                        nxt = get_next_daily_email_time()
+                        if nxt:
+                            t_str, when = nxt
+                            descriptor = f"{when}:{t_str}"
+                            if descriptor != last_announced_next_email:
+                                logger.info(f"Next daily email scheduled for {t_str} ({when})")
+                                last_announced_next_email = descriptor
+                    except Exception:
+                        pass
 
             # Read BME680 sensor data using the abstracted module
             temp_f, humidity, pressure_inhg = sensor.read_sensors()
