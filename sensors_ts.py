@@ -446,16 +446,30 @@ def main():
 
 # ---------------------------- THINGSPEAK SEND ----------------------------- #
 def thingspeak_send(temp, hum, bp):
-    """Update the ThingSpeak channel using the requests library"""
+    """Update the ThingSpeak channel using the requests library.
+
+    Note: The ThingSpeak channel is configured as:
+      - field1 = Humidity (%)
+      - field2 = Temperature (°F)
+      - field3 = Pressure (inHg)
+
+    If your channel uses a different field ordering, adjust the mapping below
+    or make it configurable in config.py.
+    """
     logger.info("Update Thingspeak Channel")
 
-    # Each field number corresponds to a field in ThingSpeak
+    # Map to channel fields (field1=humidity, field2=temperature, field3=pressure)
     params = {
         "api_key": TS_KEY,
-        "field1": temp,
-        "field2": hum,
+        "field1": hum,
+        "field2": temp,
         "field3": bp,
     }
+
+    # Detailed payload log for diagnostics
+    logger.debug(
+        f"ThingSpeak payload -> field1(humidity)={hum:.1f}%, field2(temp)={temp:.1f}°F, field3(pressure)={bp:.2f} inHg"
+    )
 
     try:
         # Update data on Thingspeak
