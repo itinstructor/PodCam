@@ -411,9 +411,14 @@ def main():
                     f"Reading {len(temp_readings)}/20: {temp_f:.1f} °F | {humidity:.1f}% | {pressure_inhg:.2f} inHg"
                 )
 
+                # Add readings to lists for averaging
+                temp_readings.append(temp_f)
+                humidity_readings.append(humidity)
+                pressure_readings.append(pressure_inhg)
+
                 # Send initial reading on startup
-                logger.info("Sending initial reading to ThingSpeak")
                 if not initial_reading_sent:
+                    logger.info("Sending initial reading to ThingSpeak")
                     thingspeak_send(
                         temp_f,
                         humidity,

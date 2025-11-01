@@ -40,9 +40,6 @@ DEFAULT_SUBJECT = f"{SUBJECT_PREFIX} System Notification"
 # Data Processing Configuration
 TRIM_PERCENT = 0.1  # Percentage to trim from each end for outlier removal (10%)
 
-# Sensor Thresholds for Alerts
-WATER_TEMP_MIN = 65.0  # Fahrenheit
-WATER_TEMP_MAX = 85.0  # Fahrenheit
 HUMIDITY_MIN = 40.0  # Percentage
 HUMIDITY_MAX = 80.0  # Percentage
 
@@ -56,11 +53,6 @@ RETRY_DELAY = 5  # seconds to wait before retrying failed operations
 RESTART_DELAY = (
     600  # seconds to wait before system restart after critical error
 )
-
-# HTML Template File Paths
-# HTML_TEMPLATE_DIR = "html_templates"
-# ALERT_EMAIL_TEMPLATE = "alert_email.html"
-# STATUS_REPORT_TEMPLATE = "status_report.html"
 
 # Camera Overlay Configuration
 ENABLE_LABEL_OVERLAY = True  # Set to False to completely disable label feature
