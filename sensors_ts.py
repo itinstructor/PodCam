@@ -89,7 +89,7 @@ previous_water_level = None
 # Create ThingSpeak data dictionary
 ts_data = {}
 
-logger.info("Aquaponics sensors send to ThingSpeak with email notifications")
+logger.info("PodsInSpace sensors send to ThingSpeak with email notifications")
 logger.info(f"Reading sensors every {SENSOR_READ_INTERVAL} seconds")
 logger.info(
     f"Averaging {READINGS_PER_CYCLE} readings over {THINGSPEAK_INTERVAL/60:.0f} minutes"
