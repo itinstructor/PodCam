@@ -7,15 +7,12 @@ from Bosch bme680 sensor with integrated email notifications
 Press Ctrl+C to exit
 """
 import api_key_ts
-import logging
-import sys
-import os
-import re
 from datetime import datetime
 from time import sleep
 
 import requests
 from bme680_ts import BME680Sensor
+from logging_config import setup_sensor_logger
 
 # Import email notification system
 from email_notification import EmailNotifier
@@ -31,47 +28,8 @@ from config import (
     SEND_EMAIL_ON_STARTUP,
 )
 
-# Configure logging
-from logging.handlers import TimedRotatingFileHandler
-
-# Create a module-specific logger to prevent conflicts
-logger = logging.getLogger(__name__)
-
-# Only configure if not already configured to prevent duplicates
-if not logger.handlers:
-    log_formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(message)s"
-    )
-
-    # Create logs directory relative to this script's location
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    logs_dir = os.path.join(script_dir, "logs")
-    os.makedirs(logs_dir, exist_ok=True)
-
-    # File handler with daily rotation, keep 7 days
-    log_file_path = os.path.join(logs_dir, "sensors_ts.log")
-    file_handler = TimedRotatingFileHandler(
-        log_file_path,
-        when="midnight",
-        interval=1,
-        backupCount=7,
-    )
-    file_handler.setFormatter(log_formatter)
-    # Add date before .log extension for rotated files: sensors_ts.YYYY-MM-DD.log
-    file_handler.suffix = ".%Y-%m-%d.log"
-    file_handler.extMatch = re.compile(r"^\.\d{4}-\d{2}-\d{2}\.log$")
-
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(log_formatter)
-
-    # Configure logging with our handlers
-    logger.setLevel(logging.INFO)
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    # Prevent propagation to avoid duplicate messages
-    logger.propagate = False
+# Setup logging for sensors module
+logger = setup_sensor_logger()
 
 # Initialize sensor objects
 sensor = BME680Sensor()

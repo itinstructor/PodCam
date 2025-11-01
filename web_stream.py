@@ -36,12 +36,7 @@
 # --------------------------- IMPORTS (Libraries) -------------------------- #
 # These are modules (libraries) that add extra features to Python
 
-import logging  # For recording error messages and debug info
 import os  # For file system operations and path handling
-import re  # For regular expressions (pattern matching)
-from logging.handlers import (
-    TimedRotatingFileHandler,
-)  # For rotating log files by day
 import socketserver  # For creating network servers that handle multiple clients
 import time  # For adding delays and timing operations
 from http import server  # For creating HTTP web servers
@@ -51,6 +46,7 @@ from threading import (
 )  # For running multiple tasks simultaneously
 from typing import Optional  # For type hints
 
+from logging_config import get_logger
 from web_stream_page import PAGE
 from config import (
     ENABLE_LABEL_OVERLAY,
@@ -81,44 +77,10 @@ import cv2
 # Logging is like a diary for your program. It records what happens and any errors.
 # This helps you debug problems and see what your code is doing.
 #
-# We use TimedRotatingFileHandler to create a new log file each day and keep 7 days of logs.
-# Each log file will be named like
-# 'web_stream.log', 'web_stream.2024-08-05.log', etc.
+# We use the centralized logging_config module for consistent logging setup.
 
-# Get the root logger
-logger = logging.getLogger()
-
-# Clear any existing handlers to prevent duplicates
-logger.handlers.clear()
-
-log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
-
-# Create logs directory relative to this script's location
-script_dir = os.path.dirname(os.path.abspath(__file__))
-logs_dir = os.path.join(script_dir, "logs")
-os.makedirs(logs_dir, exist_ok=True)
-
-# Create the log file path
-log_file_path = os.path.join(logs_dir, "web_stream.log")
-
-file_handler = TimedRotatingFileHandler(
-    log_file_path, when="midnight", interval=1, backupCount=7
-)
-file_handler.setFormatter(log_formatter)
-# Add date to rotated log files in format: web_stream.YYYY-MM-DD.log
-file_handler.suffix = ".%Y-%m-%d.log"
-file_handler.extMatch = re.compile(r"^\.\d{4}-\d{2}-\d{2}\.log$")
-
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(log_formatter)
-
-# Configure logging with our handlers
-logger.setLevel(logging.INFO)
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
-
-# Prevent propagation to avoid duplicate messages
-logger.propagate = False
+# Setup logging for web_stream module
+logger = get_logger("web_stream", enable_console=True)
 
 
 # --------------------- MEDIA RELAY (FRAME BROADCASTER) -------------------- #
@@ -173,7 +135,7 @@ class MediaRelay:
     def start_capture(self, camera_index=0):
         # Start capturing video from the USB camera
         # camera_index: 0 = first camera, 1 = second, etc.
-        logging.info(
+        logger.info(
             f"[MediaRelay] Opening camera {camera_index} with V4L2 backend..."
         )
         # Open camera using OpenCV and the V4L2 backend (best for Raspberry Pi)
@@ -183,7 +145,7 @@ class MediaRelay:
             raise RuntimeError(
                 f"Could not open camera {camera_index} with V4L2 backend"
             )
-        logging.info(
+        logger.info(
             f"[MediaRelay] ✓ Camera {camera_index} opened successfully with V4L2"
         )
 
@@ -194,31 +156,31 @@ class MediaRelay:
         actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
-        logging.info(
+        logger.info(
             f"[MediaRelay] Final camera settings: {int(actual_width)}x{int(actual_height)} @ {actual_fps} FPS"
         )
 
         # Check if we got the desired settings
         if int(actual_width) != self.width or int(actual_height) != self.height:
-            logging.warning(
+            logger.warning(
                 f"[MediaRelay] Camera {camera_index} resolution mismatch: requested {self.width}x{self.height}, got {int(actual_width)}x{int(actual_height)}"
             )
         if actual_fps != self.frame_rate:
-            logging.warning(
+            logger.warning(
                 f"[MediaRelay] Camera {camera_index} FPS mismatch: requested {self.frame_rate}, got {actual_fps}"
             )
 
         # Warm up the camera by capturing and discarding a few frames
         # This helps reduce initial lag and ensures stable image quality
-        logging.info("[MediaRelay] Warming up camera...")
+        logger.info("[MediaRelay] Warming up camera...")
         for i in range(5):
             ret, _ = self.cap.read()
             if not ret:
-                logging.warning(
+                logger.warning(
                     f"[MediaRelay] Frame {i+1} failed during warm-up"
                 )
             time.sleep(0.1)  # Small delay between warm-up frames
-        logging.info("[MediaRelay] Camera warm-up complete")
+        logger.info("[MediaRelay] Camera warm-up complete")
 
         # Start the background thread to capture frames
         self.running = True
@@ -228,7 +190,7 @@ class MediaRelay:
 
     def _configure_camera_settings(self, camera_index):
         """Enhanced camera configuration with multiple attempts to force settings."""
-        logging.info(
+        logger.info(
             f"[MediaRelay] Configuring camera {camera_index} settings: {self.width}x{self.height} @ {self.frame_rate} FPS"
         )
 
@@ -238,7 +200,7 @@ class MediaRelay:
             return
 
         # Method 2: Set FPS first, then resolution
-        logging.info(f"[MediaRelay] Trying FPS-first configuration...")
+        logger.info(f"[MediaRelay] Trying FPS-first configuration...")
         self.cap.set(cv2.CAP_PROP_FPS, self.frame_rate)
         time.sleep(0.1)  # Small delay
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
@@ -250,7 +212,7 @@ class MediaRelay:
 
         # Method 3: Multiple attempts with delays
         for attempt in range(3):
-            logging.info(
+            logger.info(
                 f"[MediaRelay] Configuration attempt {attempt + 1}/3..."
             )
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
@@ -263,7 +225,7 @@ class MediaRelay:
             if self._check_settings(f"Attempt {attempt + 1}"):
                 return
 
-        logging.warning(
+        logger.warning(
             f"[MediaRelay] Camera {camera_index} did not accept requested settings after multiple attempts"
         )
 
@@ -281,12 +243,12 @@ class MediaRelay:
         actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
 
         if actual_width == self.width and actual_height == self.height:
-            logging.info(
+            logger.info(
                 f"[MediaRelay] ✓ {method_name} successful: {actual_width}x{actual_height} @ {actual_fps} FPS"
             )
             return True
         else:
-            logging.info(
+            logger.info(
                 f"[MediaRelay] ✗ {method_name} failed: got {actual_width}x{actual_height} @ {actual_fps} FPS"
             )
             return False
@@ -406,26 +368,26 @@ class MediaRelay:
 
                             # Log when label appears (only once per state change)
                             if not self.label_shown:
-                                logging.info(
+                                logger.info(
                                     f"[MediaRelay] Label '{LABEL_TEXT}' displayed for {LABEL_DURATION_SECONDS}s"
                                 )
                                 self.label_shown = True
                         else:
                             # Log when label disappears (only once per state change)
                             if self.label_shown:
-                                logging.info(
+                                logger.info(
                                     f"[MediaRelay] Label '{LABEL_TEXT}' hidden - next display in {LABEL_CYCLE_MINUTES} minutes"
                                 )
                                 self.label_shown = False
 
                     # Apply rotation if specified for this camera
                     # Debug logging to help diagnose unexpected rotation behavior
-                    logging.debug(
+                    logger.debug(
                         f"[MediaRelay] rotation_angle={self.rotation_angle}"
                     )
                     if self.rotation_angle == 90:
                         # Rotate 90 degrees counterclockwise
-                        logging.debug(
+                        logger.debug(
                             "[MediaRelay] Applying rotation: 90° CCW (ROTATE_90_COUNTERCLOCKWISE)"
                         )
                         frame = cv2.rotate(
@@ -433,13 +395,13 @@ class MediaRelay:
                         )
                     elif self.rotation_angle == 180:
                         # Rotate 180 degrees
-                        logging.debug(
+                        logger.debug(
                             "[MediaRelay] Applying rotation: 180° (ROTATE_180)"
                         )
                         frame = cv2.rotate(frame, cv2.ROTATE_180)
                     elif self.rotation_angle == 270:
                         # Rotate 270 degrees counterclockwise (or 90 degrees clockwise)
-                        logging.debug(
+                        logger.debug(
                             "[MediaRelay] Applying rotation: 270° CCW / 90° CW (ROTATE_90_CLOCKWISE)"
                         )
                         frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
@@ -537,7 +499,7 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
         """Handle MJPEG stream requests for a specific camera relay."""
         # Check if the requested camera relay is available
         if camera_relay is None:
-            logging.error(
+            logger.error(
                 f"{camera_description} camera not available for {self.path}"
             )
             self.send_error(503, f"{camera_description} camera not available")
@@ -545,7 +507,7 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
 
         # Increment the connection counter and log new connection
         StreamingHandler.active_stream_connections += 1
-        logging.info(
+        logger.info(
             f"New {camera_description} streaming client connected from {self.client_address[0]} requesting {self.path}. "
             f"Active connections: {StreamingHandler.active_stream_connections}"
         )
@@ -574,7 +536,7 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
                     self.wfile.write(b"\r\n")
         except Exception as e:
             # If the browser disconnects or there's a network error, log it
-            logging.warning(
+            logger.warning(
                 "Removed streaming client %s (%s): %s",
                 self.client_address,
                 camera_description,
@@ -583,7 +545,7 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
         finally:
             # Decrement the connection counter when client disconnects
             StreamingHandler.active_stream_connections -= 1
-            logging.info(
+            logger.info(
                 f"{camera_description} streaming client {self.client_address[0]} disconnected from {self.path}. "
                 f"Active connections: {StreamingHandler.active_stream_connections}"
             )
@@ -636,39 +598,39 @@ def find_working_camera():
     """
     # If user specified a known camera index, try that first (fastest startup)
     if KNOWN_CAMERA_INDEX is not None:
-        logging.info(f"Trying known camera index {KNOWN_CAMERA_INDEX}...")
+        logger.info(f"Trying known camera index {KNOWN_CAMERA_INDEX}...")
         test_cap = cv2.VideoCapture(KNOWN_CAMERA_INDEX, cv2.CAP_V4L2)
         if test_cap.isOpened():
             ret, frame = test_cap.read()
             if ret and frame is not None:
-                logging.info(f"✓ Known camera {KNOWN_CAMERA_INDEX} is working")
+                logger.info(f"✓ Known camera {KNOWN_CAMERA_INDEX} is working")
                 test_cap.release()
                 return KNOWN_CAMERA_INDEX
             else:
-                logging.warning(
+                logger.warning(
                     f"Known camera {KNOWN_CAMERA_INDEX} opens but cannot capture frames"
                 )
         else:
-            logging.warning(f"Known camera {KNOWN_CAMERA_INDEX} not available")
+            logger.warning(f"Known camera {KNOWN_CAMERA_INDEX} not available")
         test_cap.release()
 
     # If known camera failed or not specified, search for cameras
-    logging.info("Detecting available cameras...")
+    logger.info("Detecting available cameras...")
     for cam_idx in range(4):
-        logging.info(f"Testing camera {cam_idx} with V4L2...")
+        logger.info(f"Testing camera {cam_idx} with V4L2...")
         test_cap = cv2.VideoCapture(cam_idx, cv2.CAP_V4L2)
         if test_cap.isOpened():
             ret, frame = test_cap.read()
             if ret and frame is not None:
-                logging.info(f"✓ Found working camera at index {cam_idx}")
+                logger.info(f"✓ Found working camera at index {cam_idx}")
                 test_cap.release()
                 return cam_idx
             else:
-                logging.warning(
+                logger.warning(
                     f"Camera {cam_idx} opens but cannot capture frames"
                 )
         else:
-            logging.info(f"Camera {cam_idx} not available")
+            logger.info(f"Camera {cam_idx} not available")
         test_cap.release()
 
     return None
@@ -678,8 +640,8 @@ def main():
     global relay0, relay1  # Declare relays as global so they can be accessed by StreamingHandler
 
     # Print status messages to help users understand what's happening
-    logging.info("Starting dual camera streaming server with V4L2 backend...")
-    logging.info("Camera 0: Fish Tank | Camera 2: Plant Bed")
+    logger.info("Starting dual camera streaming server with V4L2 backend...")
+    logger.info("Camera 0: Fish Tank | Camera 2: Plant Bed")
 
     # Initialize camera relay for fish tank (camera 0) with overlay enabled
     relay0 = MediaRelay(
@@ -692,11 +654,11 @@ def main():
     )
     try:
         relay0.start_capture(camera_index=0)
-        logging.info(
+        logger.info(
             f"✓ Fish Tank camera (camera 0) initialized successfully with overlay at {FISH_CAMERA_WIDTH}x{FISH_CAMERA_HEIGHT} @ {FISH_CAMERA_FRAME_RATE} FPS (max stream: {FISH_CAMERA_MAX_STREAM_FPS} FPS)"
         )
     except Exception as e:
-        logging.error(
+        logger.error(
             f"✗ Fish Tank camera (camera 0) failed to initialize: {e}"
         )
         relay0 = None
@@ -714,31 +676,31 @@ def main():
     )
     try:
         relay1.start_capture(camera_index=2)
-        logging.info(
+        logger.info(
             f"✓ Plant Bed camera (camera 2) initialized successfully without overlay, rotated 180° at {PLANT_CAMERA_WIDTH}x{PLANT_CAMERA_HEIGHT} @ {PLANT_CAMERA_FRAME_RATE} FPS (max stream: {PLANT_CAMERA_MAX_STREAM_FPS} FPS)"
         )
     except Exception as e:
-        logging.error(
+        logger.error(
             f"✗ Plant Bed camera (camera 2) failed to initialize: {e}"
         )
         relay1 = None
 
     # Check if at least one camera is working
     if relay0 is None and relay1 is None:
-        logging.error("No cameras could be initialized!")
-        logging.error("Please check:")
-        logging.error("  - USB cameras are connected properly")
-        logging.error("  - Cameras are not being used by another application")
-        logging.error("  - Camera permissions: sudo usermod -a -G video $USER")
-        logging.error("  - Available devices: ls -la /dev/video*")
-        logging.error("  - V4L2 info: v4l2-ctl --list-devices")
+        logger.error("No cameras could be initialized!")
+        logger.error("Please check:")
+        logger.error("  - USB cameras are connected properly")
+        logger.error("  - Cameras are not being used by another application")
+        logger.error("  - Camera permissions: sudo usermod -a -G video $USER")
+        logger.error("  - Available devices: ls -la /dev/video*")
+        logger.error("  - V4L2 info: v4l2-ctl --list-devices")
         exit(1)
 
     # Log which cameras are available
     if relay0:
-        logging.info("Fish Tank camera available at: /stream0.mjpg")
+        logger.info("Fish Tank camera available at: /stream0.mjpg")
     if relay1:
-        logging.info("Plant Bed camera available at: /stream1.mjpg")
+        logger.info("Plant Bed camera available at: /stream1.mjpg")
 
     # Now start the web server
     try:
@@ -762,26 +724,26 @@ def main():
             local_ip = socket.gethostbyname(hostname)
 
             # Print connection information for users
-            logging.info(f"Dual camera streaming server started successfully!")
-            logging.info(f"Dual camera view: http://localhost:8000/")
-            logging.info(f"Network access: http://{local_ip}:8000/")
-            logging.info(f"Raspberry Pi access: http://{hostname}.local:8000/")
+            logger.info(f"Dual camera streaming server started successfully!")
+            logger.info(f"Dual camera view: http://localhost:8000/")
+            logger.info(f"Network access: http://{local_ip}:8000/")
+            logger.info(f"Raspberry Pi access: http://{hostname}.local:8000/")
             if relay0:
-                logging.info(
+                logger.info(
                     f"Fish Tank stream: http://{local_ip}:8000/stream0.mjpg"
                 )
             if relay1:
-                logging.info(
+                logger.info(
                     f"Plant Bed stream: http://{local_ip}:8000/stream1.mjpg"
                 )
         except:
             # If we can't get the IP address, just show localhost
-            logging.info(
+            logger.info(
                 "Dual camera streaming server started on http://localhost:8000/"
             )
 
-        logging.info("Press Ctrl+C to stop the server")
-        logging.info("-" * 50)
+        logger.info("Press Ctrl+C to stop the server")
+        logger.info("-" * 50)
 
         # Start the server and keep it running
         # serve_forever() is a blocking call - the program waits here
@@ -790,7 +752,7 @@ def main():
 
     except KeyboardInterrupt:
         # This exception occurs when user presses Ctrl+C
-        logging.info("Streaming stopped by user")
+        logger.info("Streaming stopped by user")
 
     finally:
         # This block always runs, even if an error occurred
@@ -799,24 +761,21 @@ def main():
         # Stop both camera capture threads and close camera connections
         if relay0:
             relay0.stop()
-            logging.info("Fish Tank camera stopped")
+            logger.info("Fish Tank camera stopped")
         if relay1:
             relay1.stop()
-            logging.info("Plant Bed camera stopped")
+            logger.info("Plant Bed camera stopped")
 
-        logging.info("Cleanup completed. Goodbye!")
+        logger.info("Cleanup completed. Goodbye!")
 
 
 # If this script is run directly (not imported), call the main function
 if __name__ == "__main__":
-    # Configure logging to show messages on the console
-    logging.basicConfig(level=logging.DEBUG)
-
     # Start the main program
     main()
 else:
     # If this script is imported as a module, we don't run the main function
     # This allows other scripts to use the MediaRelay and StreamingServer classes
-    logging.info(
+    logger.info(
         "web_stream.py module imported. Use main() to start the server."
     )

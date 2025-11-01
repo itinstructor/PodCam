@@ -7,9 +7,7 @@ Can be used as a standalone program or imported as a module
 """
 
 import smtplib
-import logging
 import sys
-import re
 import json
 import hashlib
 import time
@@ -19,7 +17,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 import os
 from datetime import datetime
-from logging.handlers import TimedRotatingFileHandler
+from logging_config import setup_email_logger
 
 # Import configuration
 from config import (
@@ -28,54 +26,8 @@ from config import (
     DEFAULT_RECIPIENT_EMAILS, SUBJECT_PREFIX, DEFAULT_SUBJECT,
 )
 
-# --------------------------- LOGGING SETUP -------------------------------- #
-# Configure logging for this module when imported or run standalone
-# This ensures email events are always logged to the appropriate log file
-
-def _setup_email_logging():
-    """Setup logging configuration for email notifications."""
-    logger = logging.getLogger(__name__)
-    
-    # Avoid duplicate handlers if already configured
-    if logger.handlers:
-        return logger
-    
-    # Create logs directory relative to this script's location
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    logs_dir = os.path.join(script_dir, "logs")
-    os.makedirs(logs_dir, exist_ok=True)
-    
-    # Configure log formatter
-    log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
-    
-    # File handler with daily rotation, keep 7 days
-    log_file_path = os.path.join(logs_dir, "email_notification.log")
-    file_handler = TimedRotatingFileHandler(
-        log_file_path,
-        when="midnight",
-        interval=1,
-        backupCount=7,
-    )
-    file_handler.setFormatter(log_formatter)
-    # Add date to rotated log files with .log extension  
-    file_handler.suffix = ".%Y-%m-%d.log"
-    file_handler.extMatch = re.compile(r"^\.\d{4}-\d{2}-\d{2}\.log$")
-    
-    # Console handler (only when run standalone)
-    if __name__ == "__main__":
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(log_formatter)
-        logger.addHandler(console_handler)
-    
-    # Add file handler
-    logger.addHandler(file_handler)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False  # Prevent duplicate messages
-    
-    return logger
-
-# Setup logging when module is imported
-logger = _setup_email_logging()
+# Setup logging when module is imported (no console output)
+logger = setup_email_logger(enable_console=False)
 
 
 class EmailNotifier:
@@ -869,6 +821,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # When run directly as a script, the logging is already configured by _setup_email_logging()
-    # Just run the main test function
+    # Enable console output when run directly
+    logger = setup_email_logger(enable_console=True)
     main()

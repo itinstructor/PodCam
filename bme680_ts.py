@@ -7,10 +7,9 @@ from Bosch BME680 sensor connected via I2C bus
 """
 
 import bme680
-import logging
 import os
 import sys
-from logging.handlers import TimedRotatingFileHandler
+from logging_config import get_logger
 
 # Pressure offset to match National Weather Service readings
 # Aquaponics system in Scottsbluff, NE
@@ -18,8 +17,8 @@ from logging.handlers import TimedRotatingFileHandler
 # If the sensor reading is high, increase
 PRESSURE_OFFSET = 0.05
 
-# Get logger for this module (no handlers configured here)
-logger = logging.getLogger(__name__)
+# Get logger for this module - use minimal console output when imported
+logger = get_logger(__name__, enable_console=False)
 
 
 class BME680Sensor:
@@ -118,39 +117,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # Configure file and console logging only when run directly
-    log_formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(message)s"
-    )
-
-    # Create logs directory relative to this script's location
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    logs_dir = os.path.join(script_dir, "logs")
-    os.makedirs(logs_dir, exist_ok=True)
-
-    # File handler with daily rotation, keep 7 days
-    log_file_path = os.path.join(logs_dir, "bme680_ts.log")
-    file_handler = TimedRotatingFileHandler(
-        log_file_path,
-        when="midnight",
-        interval=1,
-        backupCount=7,
-    )
-    file_handler.setFormatter(log_formatter)
-    # Add date to rotated log files
-    file_handler.suffix = "%Y-%m-%d"
-
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(log_formatter)
-
-    # Configure logging with our handlers
-    logger.setLevel(logging.INFO)
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    # Prevent propagation to avoid duplicate messages
-    logger.propagate = False
-
-if __name__ == "__main__":
+    # Reconfigure logger with console output when run directly
+    logger = get_logger(__name__, enable_console=True)
     main()
