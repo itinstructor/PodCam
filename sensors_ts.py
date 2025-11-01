@@ -176,7 +176,9 @@ def should_send_daily_email():
         scheduled_times = DAILY_EMAIL_TIME
     elif isinstance(DAILY_EMAIL_TIME, str):
         if "," in DAILY_EMAIL_TIME:
-            scheduled_times = [t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()]
+            scheduled_times = [
+                t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()
+            ]
         else:
             scheduled_times = [DAILY_EMAIL_TIME.strip()]
     else:
@@ -187,7 +189,9 @@ def should_send_daily_email():
     for t in scheduled_times:
         try:
             h, m = map(int, t.split(":"))
-            scheduled_t = current_time.replace(hour=h, minute=m, second=0, microsecond=0)
+            scheduled_t = current_time.replace(
+                hour=h, minute=m, second=0, microsecond=0
+            )
         except Exception:
             continue
 
@@ -225,7 +229,9 @@ def get_next_daily_email_time():
             scheduled_times = DAILY_EMAIL_TIME
         elif isinstance(DAILY_EMAIL_TIME, str):
             if "," in DAILY_EMAIL_TIME:
-                scheduled_times = [t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()]
+                scheduled_times = [
+                    t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()
+                ]
             else:
                 scheduled_times = [DAILY_EMAIL_TIME.strip()]
         else:
@@ -238,7 +244,14 @@ def get_next_daily_email_time():
                 h, m = map(int, t.split(":"))
             except Exception:
                 continue
-            parsed.append((t, current_time.replace(hour=h, minute=m, second=0, microsecond=0)))
+            parsed.append(
+                (
+                    t,
+                    current_time.replace(
+                        hour=h, minute=m, second=0, microsecond=0
+                    ),
+                )
+            )
 
         if not parsed:
             return None
@@ -310,7 +323,9 @@ def main():
                 nxt = get_next_daily_email_time()
                 if nxt:
                     t_str, when = nxt
-                    logger.info(f"Next daily email scheduled for {t_str} ({when})")
+                    logger.info(
+                        f"Next daily email scheduled for {t_str} ({when})"
+                    )
             except Exception:
                 pass
 
@@ -338,7 +353,9 @@ def main():
                         nxt = get_next_daily_email_time()
                         if nxt:
                             t_str, when = nxt
-                            logger.info(f"Next daily email scheduled for {t_str} ({when})")
+                            logger.info(
+                                f"Next daily email scheduled for {t_str} ({when})"
+                            )
                     except Exception:
                         pass
                 else:
@@ -350,7 +367,9 @@ def main():
                             t_str, when = nxt
                             descriptor = f"{when}:{t_str}"
                             if descriptor != last_announced_next_email:
-                                logger.info(f"Next daily email scheduled for {t_str} ({when})")
+                                logger.info(
+                                    f"Next daily email scheduled for {t_str} ({when})"
+                                )
                                 last_announced_next_email = descriptor
                     except Exception:
                         pass
@@ -387,8 +406,10 @@ def main():
                     # Optionally send a startup status email once
                     if SEND_EMAIL_ON_STARTUP and not startup_email_sent:
                         try:
-                            sensor_data, system_status = get_current_sensor_data_for_email(
-                                temp_f, humidity, pressure_inhg
+                            sensor_data, system_status = (
+                                get_current_sensor_data_for_email(
+                                    temp_f, humidity, pressure_inhg
+                                )
                             )
                             if email_notifier.send_status_report(
                                 recipient_email=None,
@@ -398,9 +419,13 @@ def main():
                             ):
                                 logger.info("📧 Startup status email sent")
                             else:
-                                logger.warning("Failed to send startup status email")
+                                logger.warning(
+                                    "Failed to send startup status email"
+                                )
                         except Exception as e:
-                            logger.error(f"Error during startup email send: {e}")
+                            logger.error(
+                                f"Error during startup email send: {e}"
+                            )
                         finally:
                             startup_email_sent = True
 
@@ -461,14 +486,14 @@ def thingspeak_send(temp, hum, bp):
     # Map to channel fields (field1=humidity, field2=temperature, field3=pressure)
     params = {
         "api_key": TS_KEY,
-        "field1": hum,
-        "field2": temp,
+        "field1": temp,
+        "field2": hum,
         "field3": bp,
     }
 
     # Detailed payload log for diagnostics
     logger.debug(
-        f"ThingSpeak payload -> field1(humidity)={hum:.1f}%, field2(temp)={temp:.1f}°F, field3(pressure)={bp:.2f} inHg"
+        f"ThingSpeak payload -> field1(temp)={temp:.1f}%, field2(hum)={hum:.1f}°F, field3(pressure)={bp:.2f} inHg"
     )
 
     try:
