@@ -2,7 +2,7 @@
 """
 Filename: email_notification.py
 Description: Email notification system using Gmail SMTP
-Provides email sending capabilities for aquaponics monitoring system
+Provides email sending capabilities for PodsInSpace monitoring system
 Can be used as a standalone program or imported as a module
 """
 
@@ -147,9 +147,9 @@ class EmailNotifier:
         try:
             hostname = socket.getfqdn()
             if not hostname or hostname == 'localhost':
-                hostname = "wncc-aquaponics.local"
+                hostname = "wncc-PodsInSpace.local"
         except:
-            hostname = "wncc-aquaponics.local"
+            hostname = "wncc-PodsInSpace.local"
             
         # Generate unique ID
         unique_id = str(uuid.uuid4())
@@ -215,14 +215,14 @@ class EmailNotifier:
 
             # Create message container for HTML only
             msg = MIMEMultipart("alternative")
-            msg["From"] = f"WNCC Aquaponics System <{self.sender_email}>"  # Add friendly name
+            msg["From"] = f"WNCC PodsInSpace System <{self.sender_email}>"  # Add friendly name
             msg["To"] = ", ".join(recipients)  # Join multiple recipients with commas
             msg["Subject"] = subject
             
             # Add anti-spam headers to improve deliverability
             msg["Reply-To"] = self.sender_email
             msg["Return-Path"] = self.sender_email
-            msg["X-Mailer"] = "WNCC Aquaponics Monitoring System v1.0"
+            msg["X-Mailer"] = "WNCC PodsInSpace Monitoring System v1.0"
             msg["X-Priority"] = "3"  # Normal priority (1=High, 3=Normal, 5=Low)
             msg["Message-ID"] = self._generate_message_id()
             msg["Date"] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
@@ -252,7 +252,7 @@ class EmailNotifier:
         self, recipient_email=None, alert_type="Alert", alert_message="", sensor_data=None
     ):
         """
-        Send a formatted alert email for aquaponics system issues.
+        Send a formatted alert email for PodsInSpace system issues.
 
         Args:
             recipient_email (str or list): Email address(es) to send alert to.
@@ -330,19 +330,19 @@ class EmailNotifier:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WNCC Aquaponics System Alert</title>
+    <title>WNCC PodsInSpace System Alert</title>
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     
     <div style="background-color: #1e3a8a; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
-        <h1 style="margin: 0; font-size: 24px;">🔔 WNCC Aquaponics System Alert</h1>
+        <h1 style="margin: 0; font-size: 24px;">🔔 WNCC NASA PodsInSpace System Alert</h1>
         <p style="margin: 10px 0 0 0; font-size: 14px;">Western Nebraska Community College</p>
     </div>
     
     <div style="background-color: #fff; border: 1px solid #ddd; padding: 20px; border-radius: 0 0 8px 8px;">
-        <p style="font-size: 16px; margin-top: 0;">Dear WNCC Aquaponics Team,</p>
+        <p style="font-size: 16px; margin-top: 0;">Dear WNCC PodsInSpace Team,</p>
         
-        <p>This is an automated notification from the WNCC Aquaponics Monitoring System regarding a system condition that requires attention.</p>
+        <p>This is an automated notification from the WNCC PodsInSpace Monitoring System regarding a system condition that requires attention.</p>
         
         <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
             <h2 style="color: #856404; margin: 0 0 10px 0; font-size: 18px;">System Alert Details</h2>
@@ -357,7 +357,7 @@ class EmailNotifier:
                 </tr>
                 <tr>
                     <td style="padding: 8px; font-weight: bold; background-color: #fdf6e3;">Location:</td>
-                    <td style="padding: 8px; background-color: #fdf6e3;">WNCC Aquaponics Laboratory</td>
+                    <td style="padding: 8px; background-color: #fdf6e3;">WNCC PodsInSpace Laboratory</td>
                 </tr>
             </table>
         </div>
@@ -407,7 +407,7 @@ class EmailNotifier:
                 html_message += """
         <div style="background-color: #d1ecf1; border-left: 4px solid #bee5eb; padding: 15px; margin: 20px 0;">
             <h3 style="color: #0c5460; margin: 0 0 10px 0;">Recommended Action:</h3>
-            <p style="margin: 0; color: #0c5460;">Please review the aquaponics system at your earliest convenience to ensure optimal operation.</p>
+            <p style="margin: 0; color: #0c5460;">Please review the PodsInSpace system at your earliest convenience to ensure optimal operation.</p>
         </div>
         
         <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
@@ -415,19 +415,19 @@ class EmailNotifier:
         <div style="font-size: 12px; color: #6c757d;">
             <p><strong>System Information:</strong></p>
             <ul style="margin: 5px 0; padding-left: 20px;">
-                <li>Monitoring System: WNCC Aquaponics v1.0</li>
+                <li>Monitoring System: WNCC PodsInSpace v1.0</li>
                 <li>Installation: Western Nebraska Community College</li>
                 <li>Department: Information Technology Program</li>
             </ul>
             
             <p style="margin-top: 15px;">
-                This alert was generated automatically by the WNCC Aquaponics Monitoring System.<br>
+                This alert was generated automatically by the WNCC PodsInSpace Monitoring System.<br>
                 For technical support, please contact the Information Technology Program.
             </p>
             
             <p style="margin-top: 10px; font-style: italic;">
                 Best regards,<br>
-                WNCC Aquaponics Monitoring System
+                WNCC PodsInSpace Monitoring System
             </p>
         </div>
     </div>
@@ -517,7 +517,7 @@ class EmailNotifier:
                 html_message = f"""
 <html>
 <body style="font-family: Arial, sans-serif;">
-    <h2>WNCC Aquaponics Status Report</h2>
+    <h2>WNCC PodsInSpace Status Report</h2>
     <p><strong>Report Generated:</strong> {timestamp}</p>
     <p><strong>System Status:</strong> <span style="color: {status_color};">{system_status}</span></p>
     <h3>Current Readings:</h3>
@@ -731,10 +731,10 @@ def main():
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background-color: #1e3a8a; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
         <h1 style="margin: 0;">🔧 Email System Test</h1>
-        <p style="margin: 10px 0 0 0;">WNCC Aquaponics Monitoring System</p>
+        <p style="margin: 10px 0 0 0;">WNCC PodsInSpace Monitoring System</p>
     </div>
     <div style="background-color: #fff; border: 1px solid #ddd; padding: 20px; border-radius: 0 0 8px 8px;">
-        <p>This is a test email from the aquaponics monitoring system.</p>
+        <p>This is a test email from the PodsInSpace monitoring system.</p>
         <p>If you received this email, the HTML email system is working correctly!</p>
     </div>
 </body>
