@@ -1,5 +1,5 @@
 """
-Configuration file for the Aquaponics Monitoring System
+Configuration file for the PodsInSpace Monitoring System
 Centralizes all configurable parameters for easy maintenance
 """
 
@@ -33,7 +33,7 @@ DEFAULT_RECIPIENT_EMAILS = [
 ]
 
 # Email template constants
-SUBJECT_PREFIX = "Aquaponics "
+SUBJECT_PREFIX = "PodsInSpace "
 DEFAULT_SUBJECT = f"{SUBJECT_PREFIX} System Notification"
 
 # Data Processing Configuration
@@ -56,13 +56,10 @@ RESTART_DELAY = (
     600  # seconds to wait before system restart after critical error
 )
 
-# Default pH Value (when sensor not available)
-DEFAULT_PH = 7.0
-
 # HTML Template File Paths
-HTML_TEMPLATE_DIR = "html_templates"
-ALERT_EMAIL_TEMPLATE = "alert_email.html"
-STATUS_REPORT_TEMPLATE = "status_report.html"
+# HTML_TEMPLATE_DIR = "html_templates"
+# ALERT_EMAIL_TEMPLATE = "alert_email.html"
+# STATUS_REPORT_TEMPLATE = "status_report.html"
 
 # Camera Overlay Configuration
 ENABLE_LABEL_OVERLAY = True  # Set to False to completely disable label feature
@@ -116,4 +113,4 @@ JPEG_QUALITY = 85  # Good balance between quality and bandwidth
 # Set to 0, 1, 2, etc. if you know your camera index, or None to auto-detect
 KNOWN_CAMERA_INDEX = 0
 
-# Note: Overlay configuration is now imported from aquaponics_config.py
+# Note: Overlay configuration is now imported from PodsInSpace_config.py
