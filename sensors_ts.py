@@ -28,6 +28,7 @@ from config import (
     ENABLE_SCHEDULED_EMAILS,
     DAILY_EMAIL_TIME,
     DEFAULT_RECIPIENT_EMAILS,
+    SEND_EMAIL_ON_STARTUP,
 )
 
 # Configure logging
@@ -341,6 +342,8 @@ def main():
 
     # Send initial reading on startup
     initial_reading_sent = False
+    # Optional: send an initial status email at startup
+    startup_email_sent = False
 
     try:
         # On startup, log next scheduled daily email time once
@@ -409,7 +412,6 @@ def main():
                 )
 
                 # Send initial reading on startup
-                # Send initial reading
                 logger.info("Sending initial reading to ThingSpeak")
                 if not initial_reading_sent:
                     thingspeak_send(
@@ -418,6 +420,26 @@ def main():
                         pressure_inhg,
                     )
                     initial_reading_sent = True
+
+                    # Optionally send a startup status email once
+                    if SEND_EMAIL_ON_STARTUP and not startup_email_sent:
+                        try:
+                            sensor_data, system_status = get_current_sensor_data_for_email(
+                                temp_f, humidity, pressure_inhg
+                            )
+                            if email_notifier.send_status_report(
+                                recipient_email=None,
+                                sensor_data=sensor_data,
+                                system_status=system_status,
+                                dedup_key="startup_status",
+                            ):
+                                logger.info("📧 Startup status email sent")
+                            else:
+                                logger.warning("Failed to send startup status email")
+                        except Exception as e:
+                            logger.error(f"Error during startup email send: {e}")
+                        finally:
+                            startup_email_sent = True
 
                 # Check if we have enough readings for averaging
                 if len(temp_readings) >= READINGS_PER_CYCLE:

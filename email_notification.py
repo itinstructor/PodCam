@@ -482,7 +482,7 @@ class EmailNotifier:
             
             <p style="margin-top: 15px;">
                 This alert was generated automatically by the WNCC PodsInSpace Monitoring System.<br>
-                For technical support, please contact the Information Technology Program.
+                For technical support, please contact the WNCC Information Technology Program.
             </p>
             
             <p style="margin-top: 10px; font-style: italic;">
@@ -508,6 +508,7 @@ class EmailNotifier:
         recipient_email=None,
         sensor_data=None,
         system_status="Normal",
+        dedup_key=None,
     ):
         """
         Send a system status report email.
@@ -517,6 +518,7 @@ class EmailNotifier:
                                          If None, uses DEFAULT_RECIPIENT_EMAILS
             sensor_data (dict): Current sensor readings
             system_status (str): Overall system status
+            dedup_key (str, optional): Custom de-duplication key for separate tracking
 
         Returns:
             bool: True if report sent successfully, False otherwise
@@ -531,7 +533,11 @@ class EmailNotifier:
                     "Water Temperature": "No data",
                 }
 
-            subject = f"{SUBJECT_PREFIX} Daily Status Report"
+            # Customize subject based on dedup_key
+            if dedup_key == "startup_status":
+                subject = f"{SUBJECT_PREFIX} Startup Status Report"
+            else:
+                subject = f"{SUBJECT_PREFIX} Daily Status Report"
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # Load HTML template and build content
@@ -606,7 +612,8 @@ class EmailNotifier:
             # De-dup within a short window to avoid double sends
             try:
                 checksum = self._content_checksum(subject + "\n" + html_message)
-                if not self._should_send_dedup("status_report", checksum, min_interval_sec=300):
+                kind = dedup_key or "status_report"
+                if not self._should_send_dedup(kind, checksum, min_interval_sec=300):
                     logger.info("Skipping duplicate status report within 5 minutes window")
                     return True  # Treat as success to avoid retries/escalations
             except Exception as e:
@@ -619,7 +626,7 @@ class EmailNotifier:
             if sent:
                 # Only record on successful send
                 try:
-                    self._record_send("status_report", checksum)
+                    self._record_send(kind, checksum)
                 except Exception as e:
                     logger.debug(f"Could not record send state: {e}")
 
