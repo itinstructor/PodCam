@@ -6,7 +6,6 @@ Provides temperature, humidity, and barometric pressure readings
 from Bosch BME680 sensor connected via I2C bus
 """
 
-# sudo pip3 install bme680
 import bme680
 import logging
 import os
@@ -153,4 +152,5 @@ if __name__ == "__main__":
     # Prevent propagation to avoid duplicate messages
     logger.propagate = False
 
+if __name__ == "__main__":
     main()

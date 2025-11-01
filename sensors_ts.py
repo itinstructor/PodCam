@@ -14,14 +14,8 @@ import re
 from datetime import datetime
 from time import sleep
 
-# pip install requests
 import requests
-
-# pip install bme680
 from bme680_ts import BME680Sensor
-from water_level_sensor_ts import WaterLevelSensor
-from water_temp_sensor_ts import WaterTemperatureSensor
-from ph_sensor_ts import PHSensor
 
 # Import email notification system
 from email_notification import EmailNotifier

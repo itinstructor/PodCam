@@ -7,9 +7,6 @@ This project provides a comprehensive monitoring and notification system for an 
 ### Sensor Modules
 
 - **bme680_ts.py**: Reads temperature, humidity, and barometric pressure from a Bosch BME680 sensor via I2C.
-- **liquid_level_sensor_ts.py**: Detects water/liquid level using a GPIO-connected sensor.
-- **temp_water_sensor_ts.py**: Measures water temperature.
-- **ph_sensor_ts.py**: Reads and calibrates pH sensor data, with command-line options for calibration and testing.
 
 ### Data Aggregation & Control
 
@@ -60,13 +57,13 @@ Our set up uses a Raspberry Pi 5 with Bookworm 64-bit.
 # Change to the home directory.
 cd ~
 # Clone the repository.
-git clone https://github.com/wnccnasa/FishCam.git
+git clone https://github.com/wnccnasa/PodCam.git
 ```
 
 4. Create a virtual environment.
 
 ```bash
-cd FishCam
+cd PodCam
 python -m venv .venv
 source .venv/bin/activate
 ```
@@ -80,20 +77,10 @@ python -m pip install --upgrade pip
 6. Install requests for ThingSpeak uploads.
 
 ```bash
-pip install requests
+pip install requests bme680
 ```
 
 7. Install sensor libraries
-
-```bash
-# Install bme680 for temperature, humidity and barometric pressure sensor.
-pip install bme680
-# Water temperature sensor.
-pip install w1thermsensor
-
-# Install GPIO Zero library for GPIO access for liquid level sensor.
-pip install gpiozero lgpio pigpio RPi.GPIO
-```
 
 8. Install sensor_ts.service
 
