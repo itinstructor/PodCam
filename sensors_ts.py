@@ -154,9 +154,10 @@ def get_current_sensor_data_for_email(temp_f, humidity, pressure_inhg):
 def should_send_daily_email():
     """Determine if it's time to send the daily summary email.
 
-    Rule: Do NOT catch up on missed times. Only send at the next
-    upcoming configured time (for today). If all today's times are
-    already past, wait until tomorrow.
+    Behavior:
+    - Do NOT catch up on missed earlier times the same day.
+    - Only send for the next upcoming configured time for today.
+    - Trigger within a small grace window around the target time to tolerate loop delays.
 
     Returns a list with at most one time string when it's due now.
     """
@@ -168,48 +169,65 @@ def should_send_daily_email():
 
     now = datetime.now()
     current_date = now.date()
-    current_time = now.time()
 
-    # Normalize configured times into a list of 'HH:MM' strings
-    scheduled_times = []
+    # Parse configured times
     if isinstance(DAILY_EMAIL_TIME, list):
-        scheduled_times = DAILY_EMAIL_TIME
+        times_list = [t.strip() for t in DAILY_EMAIL_TIME]
     elif isinstance(DAILY_EMAIL_TIME, str):
         if "," in DAILY_EMAIL_TIME:
-            scheduled_times = [
-                t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()
-            ]
+            times_list = [t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()]
         else:
-            scheduled_times = [DAILY_EMAIL_TIME.strip()]
+            times_list = [DAILY_EMAIL_TIME.strip()]
     else:
-        scheduled_times = [str(DAILY_EMAIL_TIME)]
+        times_list = [str(DAILY_EMAIL_TIME)]
 
-    # Find the earliest configured time that is >= now (today's next upcoming)
-    upcoming_candidates = []
-    for t in scheduled_times:
+    # Build today datetimes for each configured time
+    candidates = []
+    for t in times_list:
         try:
             h, m = map(int, t.split(":"))
-            scheduled_t = current_time.replace(
-                hour=h, minute=m, second=0, microsecond=0
-            )
+            dt = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            candidates.append((t, dt))
         except Exception:
             continue
 
-        if scheduled_t >= current_time:
-            upcoming_candidates.append((t, scheduled_t))
-
-    if not upcoming_candidates:
-        # All scheduled times for today are already past; do not catch up
-        # Wait until tomorrow's first time
+    if not candidates:
         return []
 
-    # Select the next upcoming (smallest time >= now)
-    next_t, next_time = min(upcoming_candidates, key=lambda x: x[1])
+    # Choose the next upcoming scheduled time today (>= now), or none if all past
+    upcoming_today = [(t, dt) for (t, dt) in candidates if dt >= now]
+    if not upcoming_today:
+        # All today's times are past; do not catch up
+        return []
 
-    # If we haven't sent for this time today and we've reached/passed the time, send
-    last_sent_date = last_daily_email_dates.get(next_t)
-    if last_sent_date != current_date and current_time >= next_time:
+    next_t, next_dt = min(upcoming_today, key=lambda x: x[1])
+
+    # Only send once per day per scheduled time
+    if last_daily_email_dates.get(next_t) == current_date:
+        return []
+
+    # Grace window to allow the main loop to catch the moment (e.g., +/- 2 minutes)
+    grace_seconds = max(60, int(SENSOR_READ_INTERVAL) * 4)  # at least 1 min, typically 2 min
+
+    delta_sec = (now - next_dt).total_seconds()
+    # Detailed visibility into scheduler decision
+    try:
+        logger.debug(
+            f"Scheduler check: now={now.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"next={next_dt.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"delta_sec={delta_sec:.1f}, window=±{grace_seconds}s"
+        )
+    except Exception:
+        pass
+
+    if -grace_seconds <= delta_sec <= grace_seconds:
+        logger.debug(f"Scheduler: within window for {next_t} → SEND")
         return [next_t]
+
+    if delta_sec < -grace_seconds:
+        logger.debug("Scheduler: not yet in window → WAIT")
+    else:
+        logger.debug("Scheduler: missed window; will not catch up → SKIP")
 
     return []
 
@@ -218,52 +236,54 @@ def get_next_daily_email_time():
     """Compute the next scheduled time and whether it's today or tomorrow.
 
     Returns:
-        tuple[str, str] | None: (time_str 'HH:MM', 'today'|'tomorrow') or None if misconfigured
+        tuple: (time_str 'HH:MM', 'today'|'tomorrow'), or None if misconfigured
     """
     try:
         now = datetime.now()
-        current_time = now.time()
 
         # Normalize configured times
         if isinstance(DAILY_EMAIL_TIME, list):
-            scheduled_times = DAILY_EMAIL_TIME
+            scheduled_times = [t.strip() for t in DAILY_EMAIL_TIME]
         elif isinstance(DAILY_EMAIL_TIME, str):
             if "," in DAILY_EMAIL_TIME:
-                scheduled_times = [
-                    t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()
-                ]
+                scheduled_times = [t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()]
             else:
                 scheduled_times = [DAILY_EMAIL_TIME.strip()]
         else:
             scheduled_times = [str(DAILY_EMAIL_TIME)]
 
-        # Parse all as times
+        # Build today datetimes
         parsed = []
         for t in scheduled_times:
             try:
                 h, m = map(int, t.split(":"))
+                parsed.append((t, now.replace(hour=h, minute=m, second=0, microsecond=0)))
             except Exception:
                 continue
-            parsed.append(
-                (
-                    t,
-                    current_time.replace(
-                        hour=h, minute=m, second=0, microsecond=0
-                    ),
-                )
-            )
 
         if not parsed:
             return None
 
         # Next upcoming today
-        upcoming = [(t, tt) for (t, tt) in parsed if tt >= current_time]
-        if upcoming:
-            next_t, _ = min(upcoming, key=lambda x: x[1])
+        upcoming_today = [(t, dt) for (t, dt) in parsed if dt >= now]
+        if upcoming_today:
+            next_t, next_dt = min(upcoming_today, key=lambda x: x[1])
+            try:
+                logger.debug(
+                    f"Next email time (today): {next_t} at {next_dt.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+            except Exception:
+                pass
             return next_t, "today"
 
         # Otherwise earliest tomorrow
-        next_t, _ = min(parsed, key=lambda x: x[1])
+        next_t, earliest_dt = min(parsed, key=lambda x: x[1])
+        try:
+            logger.debug(
+                f"Next email time (tomorrow): {next_t} (today's time has passed)"
+            )
+        except Exception:
+            pass
         return next_t, "tomorrow"
 
     except Exception:
