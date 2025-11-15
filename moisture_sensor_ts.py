@@ -1,591 +1,350 @@
 #!/usr/bin/env python3
 """
-Filename: sensors_ts.py
-Description: Display temperature, pressure, and humidity
-from Bosch bme680 sensor with integrated email notifications
-!Connect to I2C bus
-Press Ctrl+C to exit
+Grove Capacitive Moisture Sensor Test via I2C/SMBus
+
+Reads analog values from the Grove Capacitive Moisture Sensor
+connected to a Grove Base Hat ADC on Raspberry Pi via I2C.
+
+Hardware Setup:
+- Grove Moisture Sensor -> Grove Base Hat analog port (A0-A7)
+- Grove Base Hat communicates via I2C (address 0x08)
+- Uses same ADC reading method as pH sensor
+
+ADC Configuration:
+- I2C Address: 0x08 (Grove Base Hat ADC)
+- 12-bit ADC (0-4095)
+- Reference Voltage: 3.3V
 """
-import api_key_ts
-from datetime import datetime
-from time import sleep
 
-import requests
-from bme680_ts import BME680Sensor
-from moisture_sensor_ts import MoistureSensor
-from logging_config import setup_sensor_logger
+import time
+import sys
+from typing import List, Optional
 
-# Import email notification system
-from email_notification import EmailNotifier
+try:
+    from smbus2 import i2c_msg, SMBus
+except ImportError:
+    print("Error: smbus2 library not found.")
+    print("\nTo install smbus2 library:")
+    print("  pip install smbus2")
+    print("or")
+    print("  sudo apt-get install python3-smbus")
+    sys.exit(1)
 
-# Import configuration constants
-from config import (
-    SENSOR_READ_INTERVAL,
-    THINGSPEAK_INTERVAL,
-    READINGS_PER_CYCLE,
-    ENABLE_SCHEDULED_EMAILS,
-    DAILY_EMAIL_TIME,
-    DEFAULT_RECIPIENT_EMAILS,
-    SEND_EMAIL_ON_STARTUP,
-)
+# I2C Configuration
+I2C_BUS = 1  # Use I2C bus 1 (default on Raspberry Pi)
+ADC_I2C_ADDR = 0x08  # Grove Base Hat ADC I2C address
+SENSOR_CHANNEL = 0  # Which analog port (0=A0, 1=A1, etc.)
 
-# Setup logging for sensors module
-logger = setup_sensor_logger()
+# ADC Constants
+ADC_MAX = 4095.0  # 12-bit ADC maximum value
+V_REF = 3.3  # Reference voltage (3.3V on Raspberry Pi)
 
-# Initialize sensor objects
-sensor = BME680Sensor()
-
-# Initialize email notification system
-email_notifier = EmailNotifier()
-
-# Substitute your api key in this file for updating your ThingSpeak channel
-TS_KEY = api_key_ts.THINGSPEAK_API_KEY
-
-# Global variables for email scheduling and water level tracking
-# Track last sent date per scheduled time (keyed by 'HH:MM')
-last_daily_email_dates = {}
-# Track what 'next scheduled' message we've already logged to avoid spam
-last_announced_next_email = None
-previous_water_level = None
-
-# Create ThingSpeak data dictionary
-ts_data = {}
-
-logger.info("PodsInSpace sensors send to ThingSpeak with email notifications")
-logger.info(f"Reading sensors every {SENSOR_READ_INTERVAL} seconds")
-logger.info(
-    f"Averaging {READINGS_PER_CYCLE} readings over {THINGSPEAK_INTERVAL/60:.0f} minutes"
-)
-if ENABLE_SCHEDULED_EMAILS:
-    # Display configured daily times (support string or list)
-    try:
-        if isinstance(DAILY_EMAIL_TIME, list):
-            times_descr = ", ".join(DAILY_EMAIL_TIME)
-        elif isinstance(DAILY_EMAIL_TIME, str) and "," in DAILY_EMAIL_TIME:
-            times_descr = ", ".join(
-                [t.strip() for t in DAILY_EMAIL_TIME.split(",")]
-            )
-        else:
-            times_descr = str(DAILY_EMAIL_TIME)
-    except Exception:
-        times_descr = str(DAILY_EMAIL_TIME)
-
-    logger.info(f"Daily summary emails at {times_descr}")
-    logger.info("Water level change alerts enabled")
-logger.info("Ctrl+C to exit!")
+# Convert to percentage (adjust calibration values for your sensor)
+# Calibration: measure sensor in completely dry and completely wet conditions
+DRY_VALUE = 425  # ADC value in dry soil (calibrate this!)
+WET_VALUE = 3000  # ADC value in wet soil (calibrate this!)
 
 
-# ------------------------ CALCULATE TRIMMED MEAN -------------------------- #
-def calculate_trimmed_mean(readings, trim_percent=0.1):
-    """
-    Calculate trimmed mean by removing outliers from the dataset.
-    Removes trim_percent from both ends of the sorted data.
-    Default removes 10% from each end (20% total).
-    """
-    if not readings:
-        return 0.0
+class MoistureSensorReader:
+    """Reader that uses smbus2 i2c_rdwr to query the Grove Base Hat ADC."""
 
-    if len(readings) == 1:
-        return readings[0]
+    def __init__(self, addr: int = ADC_I2C_ADDR, busnum: int = I2C_BUS):
+        """Initialize the ADC reader.
 
-    # Sort the readings
-    sorted_readings = sorted(readings)
+        Args:
+            addr: I2C address of the Grove Base Hat ADC (default: 0x08)
+            busnum: I2C bus number (default: 1)
+        """
+        self.addr = addr
+        self.busnum = busnum
 
-    # Calculate number of values to trim from each end
-    trim_count = max(1, int(len(sorted_readings) * trim_percent))
+    def _read_raw_bytes(self, channel: int = 0) -> List[int]:
+        """Read raw bytes from the ADC for the specified channel.
 
-    # Ensure we don't trim all values
-    if trim_count * 2 >= len(sorted_readings):
-        trim_count = 0
+        Args:
+            channel: ADC channel to read (0-7 for A0-A7)
 
-    # Remove outliers from both ends
-    if trim_count > 0:
-        trimmed_readings = sorted_readings[trim_count:-trim_count]
-    else:
-        trimmed_readings = sorted_readings
+        Returns:
+            List of 4 bytes read from the ADC
+        """
+        # Open I2C bus connection
+        with SMBus(self.busnum) as bus:
+            # Send command to ADC: [0x30, channel, 0x00, 0x00]
+            write = i2c_msg.write(self.addr, [0x30, channel, 0x00, 0x00])
+            bus.i2c_rdwr(write)
 
-    # Calculate and return the mean
-    return sum(trimmed_readings) / len(trimmed_readings)
+            # Read 4 bytes of response
+            read = i2c_msg.read(self.addr, 4)
+            bus.i2c_rdwr(read)
 
+            # Convert to list of integers
+            data = list(read)
 
-# ---------------- GET CURRENT SENSOR DATA FOR EMAIL ----------------------- #
-def get_current_sensor_data_for_email(temp_f, humidity, pressure_inhg, moisture_pct=None, moisture_status=None):
-    """
-    Format current sensor readings for email reports.
+        return data
 
-    Args:
-        temp_f: Air temperature in Fahrenheit
-        humidity: Humidity percentage
-        pressure_inhg: Pressure in inches of mercury
+    def read_raw(self, channel: int = 0) -> dict:
+        """Read raw ADC value and convert to voltage.
 
-    Returns:
-        dict: Formatted sensor data
-        str: System status
-    """
-    try:
+        Args:
+            channel: ADC channel to read (0-7 for A0-A7)
 
-        # Format sensor data
-        sensor_data = {
-            "Air Temperature": (
-                f"{temp_f:.1f} °F" if temp_f is not None else "No data"
-            ),
-            "Humidity": (
-                f"{humidity:.1f}%" if humidity is not None else "No data"
-            ),
-            "Pressure": (
-                f"{pressure_inhg:.2f} inHg"
-                if pressure_inhg is not None
-                else "No data"
-            ),
+        Returns:
+            Dictionary with raw ADC value, voltage, and raw bytes
+        """
+        # Read raw bytes from ADC
+        data = self._read_raw_bytes(channel)
+
+        # Try different byte interpretation methods
+        candidates = []
+        if len(data) >= 2:
+            # Low byte first
+            v0 = (data[0] | (data[1] << 8)) & 0xFFFF
+            candidates.append(("low_first", v0))
+        if len(data) >= 4:
+            # Middle pair
+            v1 = (data[2] | (data[3] << 8)) & 0xFFFF
+            candidates.append(("mid_pair", v1))
+            # High byte first
+            v2 = (data[0] << 8) | data[1]
+            candidates.append(("high_first", v2))
+
+        # Find valid ADC reading
+        raw = None
+        chosen_method = None
+        for name, val in candidates:
+            if 0 <= val <= ADC_MAX:
+                raw = int(val)
+                chosen_method = name
+                break
+
+        # Fallback if no valid reading found
+        if raw is None:
+            raw = ((data[0] | (data[1] << 8)) & 0x0FFF) if len(data) >= 2 else 0
+            chosen_method = "fallback_mask12"
+
+        # Convert raw ADC to voltage
+        voltage_v = (raw / ADC_MAX) * V_REF
+
+        return {
+            "raw": raw,
+            "voltage_v": voltage_v,
+            "raw_bytes": data,
+            "chosen_method": chosen_method,
         }
 
-        if moisture_pct is not None:
-            sensor_data["Soil Moisture"] = f"{moisture_pct:.1f}%"
-        else:
-            sensor_data["Soil Moisture"] = "No data"
-        if moisture_status is not None:
-            sensor_data["Soil Moisture Status"] = moisture_status
+    def read_moisture(self, channel: int = 0) -> int:
+        """Read moisture sensor raw ADC value.
 
-        # Determine system status
-        system_status = "Normal"
-        return sensor_data, system_status
+        Args:
+            channel: ADC channel to read (0-7 for A0-A7)
 
-    except Exception as e:
-        logger.error(f"Error formatting sensor data for email: {e}")
-        return {
-            "Air Temperature": "Error",
-            "Humidity": "Error",
-            "Pressure": "Error",
-            "Soil Moisture": "Error",
-            "Soil Moisture Status": "Error",
-        }, "Critical"
+        Returns:
+            Raw ADC value (0-4095)
+        """
+        r = self.read_raw(channel)
+        return int(r["raw"])
 
+    def read_moisture_averaged(
+        self,
+        channel: int = 0,
+        samples: int = 10,
+        delay: float = 0.05,
+    ) -> Optional[int]:
+        """Read averaged moisture sensor value.
 
-def should_send_daily_email():
-    """Determine if it's time to send the daily summary email.
+        Args:
+            channel: ADC channel to read
+            samples: Number of readings to average
+            delay: Delay between readings in seconds
 
-    Behavior:
-    - Do NOT catch up on missed earlier times the same day.
-    - Only send for the next upcoming configured time for today.
-    - Trigger within a small grace window around the target time to tolerate loop delays.
-
-    Returns a list with at most one time string when it's due now.
-    """
-
-    global last_daily_email_dates
-
-    if not ENABLE_SCHEDULED_EMAILS:
-        return []
-
-    now = datetime.now()
-    current_date = now.date()
-
-    # Parse configured times
-    if isinstance(DAILY_EMAIL_TIME, list):
-        times_list = [t.strip() for t in DAILY_EMAIL_TIME]
-    elif isinstance(DAILY_EMAIL_TIME, str):
-        if "," in DAILY_EMAIL_TIME:
-            times_list = [t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()]
-        else:
-            times_list = [DAILY_EMAIL_TIME.strip()]
-    else:
-        times_list = [str(DAILY_EMAIL_TIME)]
-
-    # Build today datetimes for each configured time
-    candidates = []
-    for t in times_list:
-        try:
-            h, m = map(int, t.split(":"))
-            dt = now.replace(hour=h, minute=m, second=0, microsecond=0)
-            candidates.append((t, dt))
-        except Exception:
-            continue
-
-    if not candidates:
-        return []
-
-    # Choose the next upcoming scheduled time today (>= now), or none if all past
-    upcoming_today = [(t, dt) for (t, dt) in candidates if dt >= now]
-    if not upcoming_today:
-        # All today's times are past; do not catch up
-        return []
-
-    next_t, next_dt = min(upcoming_today, key=lambda x: x[1])
-
-    # Only send once per day per scheduled time
-    if last_daily_email_dates.get(next_t) == current_date:
-        return []
-
-    # Grace window to allow the main loop to catch the moment (e.g., +/- 2 minutes)
-    grace_seconds = max(60, int(SENSOR_READ_INTERVAL) * 4)  # at least 1 min, typically 2 min
-
-    delta_sec = (now - next_dt).total_seconds()
-    # Detailed visibility into scheduler decision
-    try:
-        logger.debug(
-            f"Scheduler check: now={now.strftime('%Y-%m-%d %H:%M:%S')}, "
-            f"next={next_dt.strftime('%Y-%m-%d %H:%M:%S')}, "
-            f"delta_sec={delta_sec:.1f}, window=±{grace_seconds}s"
-        )
-    except Exception:
-        pass
-
-    if -grace_seconds <= delta_sec <= grace_seconds:
-        logger.debug(f"Scheduler: within window for {next_t} → SEND")
-        return [next_t]
-
-    if delta_sec < -grace_seconds:
-        logger.debug("Scheduler: not yet in window → WAIT")
-    else:
-        logger.debug("Scheduler: missed window; will not catch up → SKIP")
-
-    return []
-
-
-def get_next_daily_email_time():
-    """Compute the next scheduled time and whether it's today or tomorrow.
-
-    Returns:
-        tuple: (time_str 'HH:MM', 'today'|'tomorrow'), or None if misconfigured
-    """
-    try:
-        now = datetime.now()
-
-        # Normalize configured times
-        if isinstance(DAILY_EMAIL_TIME, list):
-            scheduled_times = [t.strip() for t in DAILY_EMAIL_TIME]
-        elif isinstance(DAILY_EMAIL_TIME, str):
-            if "," in DAILY_EMAIL_TIME:
-                scheduled_times = [t.strip() for t in DAILY_EMAIL_TIME.split(",") if t.strip()]
-            else:
-                scheduled_times = [DAILY_EMAIL_TIME.strip()]
-        else:
-            scheduled_times = [str(DAILY_EMAIL_TIME)]
-
-        # Build today datetimes
-        parsed = []
-        for t in scheduled_times:
+        Returns:
+            Averaged raw ADC value, or None if no valid readings
+        """
+        vals: List[int] = []
+        for _ in range(samples):
             try:
-                h, m = map(int, t.split(":"))
-                parsed.append((t, now.replace(hour=h, minute=m, second=0, microsecond=0)))
-            except Exception:
-                continue
-
-        if not parsed:
-            return None
-
-        # Next upcoming today
-        upcoming_today = [(t, dt) for (t, dt) in parsed if dt >= now]
-        if upcoming_today:
-            next_t, next_dt = min(upcoming_today, key=lambda x: x[1])
-            try:
-                logger.debug(
-                    f"Next email time (today): {next_t} at {next_dt.strftime('%Y-%m-%d %H:%M:%S')}"
-                )
+                vals.append(self.read_moisture(channel))
             except Exception:
                 pass
-            return next_t, "today"
+            time.sleep(delay)
 
-        # Otherwise earliest tomorrow
-        next_t, earliest_dt = min(parsed, key=lambda x: x[1])
+        if not vals:
+            raise RuntimeError("No valid readings collected")
+
+        # Calculate average
+        return int(sum(vals) / len(vals))
+
+
+class MoistureSensor:
+    """Simplified moisture sensor wrapper class."""
+
+    def __init__(self, channel: int = SENSOR_CHANNEL):
+        """Initialize the moisture sensor reader.
+
+        Args:
+            channel: ADC channel where sensor is connected (0-7)
+        """
+        self.channel = channel
+        self.reader = MoistureSensorReader()
+
+    def read_moisture(self) -> Optional[int]:
+        """Read single moisture sensor value.
+
+        Returns:
+            Raw ADC value (0-4095), or None on error
+        """
         try:
-            logger.debug(
-                f"Next email time (tomorrow): {next_t} (today's time has passed)"
+            return self.reader.read_moisture(channel=self.channel)
+        except Exception as e:
+            print(f"Error reading moisture sensor: {e}")
+            return None
+
+    def read_moisture_averaged(self, samples: int = 10) -> Optional[int]:
+        """Read averaged moisture sensor value.
+
+        Args:
+            samples: Number of readings to average
+
+        Returns:
+            Averaged raw ADC value, or None on error
+        """
+        try:
+            return self.reader.read_moisture_averaged(
+                channel=self.channel, samples=samples
             )
-        except Exception:
-            pass
-        return next_t, "tomorrow"
+        except Exception as e:
+            print(f"Error reading averaged moisture: {e}")
+            return None
 
-    except Exception:
-        return None
+# -------------------------- READ SENSOR ----------------------------------- #
+    def read_sensor(self) -> Optional[dict]:
+        """Read moisture sensor and return calculated values.
+
+        Returns:
+            Dictionary with sensor data:
+            {
+                'raw': int,              # Raw ADC value (0-4095)
+                'voltage': float,        # Voltage in volts
+                'moisture_percent': float,  # Calculated moisture percentage
+                'status': str            # Status description
+            }
+            Returns None on error.
+        """
+        try:
+            # Read moisture sensor value
+            sensor_value = self.read_moisture()
+
+            if sensor_value is None:
+                return None
+
+            # Read voltage for reference
+            raw_data = self.reader.read_raw(self.channel)
+            voltage = raw_data["voltage_v"]
+
+            # Clamp value to calibration range
+            clamped_value = max(DRY_VALUE, min(sensor_value, WET_VALUE))
+            moisture_percent = (
+                (clamped_value - DRY_VALUE) / (WET_VALUE - DRY_VALUE)
+            ) * 100
+
+            # Interpret moisture level
+            if moisture_percent < 20:
+                status = "Very Dry 🌵"
+            elif moisture_percent < 40:
+                status = "Dry"
+            elif moisture_percent < 60:
+                status = "Moderate 💧"
+            elif moisture_percent < 80:
+                status = "Moist"
+            else:
+                status = "Very Wet 💦"
+
+            return {
+                'raw': sensor_value,
+                'voltage': voltage,
+                'moisture_percent': moisture_percent,
+                'status': status
+            }
+
+        except Exception as e:
+            print(f"Error reading sensor: {e}")
+            return None
 
 
-def send_daily_summary_email(
-    temp_f,
-    humidity,
-    pressure_inhg,
-    scheduled_time=None,
-):
-    """Send daily summary email."""
+def test_all_channels():
+    """Test all ADC channels to find where the moisture sensor is connected."""
+    print("Testing all ADC channels to find the moisture sensor...\n")
 
     try:
-        logger.info("📧 Sending daily summary email")
+        reader = MoistureSensorReader()
 
-        sensor_data, system_status = get_current_sensor_data_for_email(
-            temp_f,
-            humidity,
-            pressure_inhg,
-        )
+        for channel in range(8):  # Test channels 0-7
+            try:
+                raw_data = reader.read_raw(channel)
+                voltage = raw_data["voltage_v"]
+                raw_adc = raw_data["raw"]
+                print(
+                    f"Channel {channel}: Raw ADC = {raw_adc:4d}, Voltage = {voltage:.3f}V"
+                )
 
-        success = email_notifier.send_status_report(
-            recipient_email=None,  # Uses DEFAULT_RECIPIENT_EMAILS for multiple recipients
-            sensor_data=sensor_data,
-            system_status=system_status,
-        )
+                # Moisture sensor typically reads between 0.5V - 3.0V
+                if 0.5 < voltage < 3.0 and raw_adc > 100:
+                    print(
+                        f"  *** Channel {channel} might be your moisture sensor! ***"
+                    )
 
-        if success:
-            # Record last sent date for this scheduled_time (or default key)
-            key = scheduled_time if scheduled_time else "default"
-            last_daily_email_dates[key] = datetime.now().date()
-            logger.info("✅ Daily summary email sent successfully")
-        else:
-            logger.error("❌ Failed to send daily summary email")
+            except Exception as e:
+                print(f"Channel {channel}: Error - {e}")
 
     except Exception as e:
-        logger.error(f"Error sending daily summary email: {e}")
+        print(f"Error initializing ADC reader: {e}")
+
+    print(
+        "\nIf you found a channel with active signal, update SENSOR_CHANNEL in the code."
+    )
 
 
 def main():
-    # Initialize lists to store readings for averaging
-    temp_readings = []
-    humidity_readings = []
-    pressure_readings = []
-    moisture_readings = []
-    moisture_status_last = None
-
-    # Moisture sensor object (lazy init when first used)
-    moisture_sensor = MoistureSensor()
-
-    # Send initial reading on startup
-    initial_reading_sent = False
-    # Optional: send an initial status email at startup
-    startup_email_sent = False
+    """Main test function for moisture sensor."""
+    print("Grove Capacitive Moisture Sensor Test")
+    print(f"I2C Bus: {I2C_BUS}, ADC Address: 0x{ADC_I2C_ADDR:02X}")
+    print(f"Reading from channel A{SENSOR_CHANNEL}")
+    print("Press Ctrl+C to exit\n")
 
     try:
-        # On startup, log next scheduled daily email time once
-        if ENABLE_SCHEDULED_EMAILS:
-            try:
-                nxt = get_next_daily_email_time()
-                if nxt:
-                    t_str, when = nxt
-                    logger.info(
-                        f"Next daily email scheduled for {t_str} ({when})"
-                    )
-            except Exception:
-                pass
-
+        # Initialize sensor
+        sensor = MoistureSensor(channel=SENSOR_CHANNEL)
+        
+        # Test I2C connection
+        try:
+            test_reading = sensor.read_moisture()
+            if test_reading is not None:
+                print(f"✓ Grove Base Hat ADC detected (initial reading: {test_reading})\n")
+            else:
+                print("✗ Warning: Could not read from ADC\n")
+        except Exception as e:
+            print(f"✗ Warning: Cannot detect Grove Base Hat ADC: {e}\n")
+        
+        # Run continuous monitoring every 5 seconds
         while True:
-            # Check for scheduled emails before sensor readings
-            if ENABLE_SCHEDULED_EMAILS:
-                # Get current sensor readings for email scheduling
-                current_temp_f, current_humidity, current_pressure_inhg = (
-                    sensor.read_sensors()
-                )
-
-                # Check for daily summary email(s)
-                due = should_send_daily_email()
-                if due:
-                    for scheduled_time in due:
-                        send_daily_summary_email(
-                            current_temp_f,
-                            current_humidity,
-                            current_pressure_inhg,
-                            scheduled_time=scheduled_time,
-                        )
-
-                    # After sending, announce the next schedule time
-                    try:
-                        nxt = get_next_daily_email_time()
-                        if nxt:
-                            t_str, when = nxt
-                            logger.info(
-                                f"Next daily email scheduled for {t_str} ({when})"
-                            )
-                    except Exception:
-                        pass
-                else:
-                    # Periodically announce only when it changes
-                    try:
-                        global last_announced_next_email
-                        nxt = get_next_daily_email_time()
-                        if nxt:
-                            t_str, when = nxt
-                            descriptor = f"{when}:{t_str}"
-                            if descriptor != last_announced_next_email:
-                                logger.info(
-                                    f"Next daily email scheduled for {t_str} ({when})"
-                                )
-                                last_announced_next_email = descriptor
-                    except Exception:
-                        pass
-
-            # Read BME680 sensor data using the abstracted module
-            temp_f, humidity, pressure_inhg = sensor.read_sensors()
-            moisture_data = moisture_sensor.read_sensor()
-            if moisture_data is not None:
-                moisture_pct = moisture_data.get("moisture_percent")
-                moisture_status_last = moisture_data.get("status")
+            data = sensor.read_sensor()
+            
+            if data is not None:
+                print(f"Moisture Sensor Value: {data['raw']:4d} ({data['voltage']:.3f}V)")
+                print(f"Moisture: {data['moisture_percent']:.1f}% - {data['status']}\n")
             else:
-                moisture_pct = None
-
-            # Check if BME680 sensor data was retrieved successfully
-            if (
-                temp_f is not None
-                and humidity is not None
-                and pressure_inhg is not None
-            ):
-
-                logger.info(
-                    f"Reading {len(temp_readings)}/20: {temp_f:.1f} °F | {humidity:.1f}% | {pressure_inhg:.2f} inHg | Moisture: {moisture_pct:.1f}%" if moisture_pct is not None else
-                    f"Reading {len(temp_readings)}/20: {temp_f:.1f} °F | {humidity:.1f}% | {pressure_inhg:.2f} inHg | Moisture: No data"
-                )
-
-                # Add readings to lists for averaging
-                temp_readings.append(temp_f)
-                humidity_readings.append(humidity)
-                pressure_readings.append(pressure_inhg)
-                if moisture_pct is not None:
-                    moisture_readings.append(moisture_pct)
-
-                # Send initial reading on startup
-                if not initial_reading_sent:
-                    logger.info("Sending initial reading to ThingSpeak")
-                    thingspeak_send(
-                        temp_f,
-                        humidity,
-                        pressure_inhg,
-                        moisture_pct,
-                    )
-                    initial_reading_sent = True
-
-                    # Optionally send a startup status email once
-                    if SEND_EMAIL_ON_STARTUP and not startup_email_sent:
-                        try:
-                            sensor_data, system_status = get_current_sensor_data_for_email(
-                                temp_f, humidity, pressure_inhg, moisture_pct, moisture_status_last
-                            )
-                            if email_notifier.send_status_report(
-                                recipient_email=None,
-                                sensor_data=sensor_data,
-                                system_status=system_status,
-                                dedup_key="startup_status",
-                            ):
-                                logger.info("📧 Startup status email sent")
-                            else:
-                                logger.warning(
-                                    "Failed to send startup status email"
-                                )
-                        except Exception as e:
-                            logger.error(
-                                f"Error during startup email send: {e}"
-                            )
-                        finally:
-                            startup_email_sent = True
-
-                # Check if we have enough readings for averaging
-                if len(temp_readings) >= READINGS_PER_CYCLE:
-                    # Calculate averages using trimmed mean (remove outliers)
-                    avg_temp = calculate_trimmed_mean(temp_readings)
-                    avg_humidity = calculate_trimmed_mean(humidity_readings)
-                    avg_pressure = calculate_trimmed_mean(pressure_readings)
-                    avg_moisture = calculate_trimmed_mean(moisture_readings) if moisture_readings else None
-
-                    logger.info(f"Avg Temperature: {avg_temp:.1f} °F")
-                    logger.info(f"Avg Humidity: {avg_humidity:.1f}%")
-                    logger.info(f"Avg Pressure: {avg_pressure:.2f} inHg")
-                    if avg_moisture is not None:
-                        logger.info(f"Avg Moisture: {avg_moisture:.1f}% ({moisture_status_last or ''})")
-
-                    # Send averaged data to ThingSpeak
-                    thingspeak_send(
-                        avg_temp,
-                        avg_humidity,
-                        avg_pressure,
-                        avg_moisture,
-                    )
-
-                    # Clear the reading lists for the next cycle
-                    temp_readings.clear()
-                    humidity_readings.clear()
-                    pressure_readings.clear()
-                    moisture_readings.clear()
-
-                # Sleep for 30 seconds before next reading
-                sleep(SENSOR_READ_INTERVAL)
-            else:
-                logger.warning("Failed to get BME680 sensor data")
-                sleep(5)  # Short sleep before retrying
+                print("Failed to read sensor\n")
+            
+            time.sleep(1.0)
 
     except KeyboardInterrupt:
-        logger.info("Bye!")
-
-        exit(0)
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-
-        # Sleep before potential restart
-        sleep(600)
+        print("\n\nExiting program")
+        sys.exit(0)
 
 
-# ---------------------------- THINGSPEAK SEND ----------------------------- #
-def thingspeak_send(temp, hum, bp, moisture):
-    """Update the ThingSpeak channel using the requests library.
-
-        Note: The ThingSpeak channel is configured as:
-            - field1 = Humidity (%)
-            - field2 = Temperature (°F)
-            - field3 = Pressure (inHg)
-            - field4 = Soil Moisture (%)
-
-    If your channel uses a different field ordering, adjust the mapping below
-    or make it configurable in config.py.
-    """
-    logger.info("Update Thingspeak Channel")
-
-    # Map to channel fields (field1=humidity, field2=temperature, field3=pressure)
-    params = {
-        "api_key": TS_KEY,
-        "field1": hum,
-        "field2": temp,
-        "field3": bp,
-        "field4": moisture,
-    }
-
-    # Detailed payload log for diagnostics
-    try:
-        logger.debug(
-            "ThingSpeak payload -> "
-            f"field1(humidity)={hum:.1f}%, "
-            f"field2(temp)={temp:.1f}°F, "
-            f"field3(pressure)={bp:.2f} inHg, "
-            + (f"field4(moisture)={moisture:.1f}%" if moisture is not None else "field4(moisture)=")
-        )
-    except Exception:
-        pass
-
-    try:
-        # Update data on Thingspeak
-        ts_update = requests.get(
-            "https://api.thingspeak.com/update", params=params, timeout=30
-        )
-
-        # Was the update successful?
-        if ts_update.status_code == requests.codes.ok:
-            logger.info("Data Received!")
-        else:
-            logger.error("Error Code: " + str(ts_update.status_code))
-
-        # Print ThingSpeak response to console
-        # ts_update.text is the thingspeak data entry number in the channel
-        logger.info(f"ThingSpeak Channel Entry: {ts_update.text}")
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error sending to ThingSpeak: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error in thingspeak_send: {e}")
-
-
-# If a standalone program, call the main function
-# Else, use as a module
 if __name__ == "__main__":
-    logger.info("Starting sensors ThingSpeak service...")
-    try:
-        main()
-    except KeyboardInterrupt:
-        logger.info("Program interrupted by user")
+    # Uncomment the line below to test all channels first
+    # test_all_channels()
+    # print("\n=== NOW RUNNING MOISTURE SENSOR TEST ===\n")
 
-        exit(0)
-    except Exception as e:
-        logger.critical(f"Critical error in main: {e}")
-
-        exit(1)
+    main()

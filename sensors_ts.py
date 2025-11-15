@@ -304,6 +304,8 @@ def send_daily_summary_email(
     temp_f,
     humidity,
     pressure_inhg,
+    moisture_pct=None,
+    moisture_status=None,
     scheduled_time=None,
 ):
     """Send daily summary email."""
@@ -315,6 +317,8 @@ def send_daily_summary_email(
             temp_f,
             humidity,
             pressure_inhg,
+            moisture_pct,
+            moisture_status,
         )
 
         success = email_notifier.send_status_report(
@@ -341,9 +345,10 @@ def main():
     humidity_readings = []
     pressure_readings = []
     moisture_readings = []
+    
+    # Moisture sensor tracking
+    moisture_pct = None
     moisture_status_last = None
-
-    # Moisture sensor object (lazy init when first used)
     moisture_sensor = MoistureSensor()
 
     # Send initial reading on startup
@@ -371,6 +376,10 @@ def main():
                 current_temp_f, current_humidity, current_pressure_inhg = (
                     sensor.read_sensors()
                 )
+                # Get current moisture reading for email
+                current_moisture_data = moisture_sensor.read_sensor()
+                current_moisture_pct = current_moisture_data.get("moisture_percent") if current_moisture_data else None
+                current_moisture_status = current_moisture_data.get("status") if current_moisture_data else None
 
                 # Check for daily summary email(s)
                 due = should_send_daily_email()
@@ -380,6 +389,8 @@ def main():
                             current_temp_f,
                             current_humidity,
                             current_pressure_inhg,
+                            current_moisture_pct,
+                            current_moisture_status,
                             scheduled_time=scheduled_time,
                         )
 
@@ -411,12 +422,15 @@ def main():
 
             # Read BME680 sensor data using the abstracted module
             temp_f, humidity, pressure_inhg = sensor.read_sensors()
+            
+            # Read moisture sensor data
             moisture_data = moisture_sensor.read_sensor()
             if moisture_data is not None:
                 moisture_pct = moisture_data.get("moisture_percent")
                 moisture_status_last = moisture_data.get("status")
             else:
                 moisture_pct = None
+                moisture_status_last = None
 
             # Check if BME680 sensor data was retrieved successfully
             if (
@@ -425,10 +439,15 @@ def main():
                 and pressure_inhg is not None
             ):
 
-                logger.info(
-                    f"Reading {len(temp_readings)}/20: {temp_f:.1f} °F | {humidity:.1f}% | {pressure_inhg:.2f} inHg | Moisture: {moisture_pct:.1f}%" if moisture_pct is not None else
-                    f"Reading {len(temp_readings)}/20: {temp_f:.1f} °F | {humidity:.1f}% | {pressure_inhg:.2f} inHg | Moisture: No data"
-                )
+                # Log reading with moisture status
+                if moisture_pct is not None:
+                    logger.info(
+                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {temp_f:.1f} °F | {humidity:.1f}% | {pressure_inhg:.2f} inHg | Moisture: {moisture_pct:.1f}% ({moisture_status_last})"
+                    )
+                else:
+                    logger.info(
+                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {temp_f:.1f} °F | {humidity:.1f}% | {pressure_inhg:.2f} inHg | Moisture: No data"
+                    )
 
                 # Add readings to lists for averaging
                 temp_readings.append(temp_f)
