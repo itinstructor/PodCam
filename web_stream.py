@@ -57,21 +57,36 @@ from config import (
     LABEL_TRANSPARENCY,
     TEXT_TRANSPARENCY,
     TEXT_COLOR,
-    FISH_CAMERA_WIDTH,
-    FISH_CAMERA_HEIGHT,
+    CAMERA_WIDTH,
+    CAMERA_HEIGHT,
     PLANT_CAMERA_WIDTH,
     PLANT_CAMERA_HEIGHT,
-    FISH_CAMERA_FRAME_RATE,
+    CAMERA_FRAME_RATE,
     PLANT_CAMERA_FRAME_RATE,
     FISH_CAMERA_MAX_STREAM_FPS,
     PLANT_CAMERA_MAX_STREAM_FPS,
     JPEG_QUALITY,
     KNOWN_CAMERA_INDEX,
+    # Day/Night config (software only)
+    ENABLE_DAY_NIGHT,
+    NIGHT_LUMA_THRESHOLD,
+    DAY_LUMA_THRESHOLD,
+    LUMA_SAMPLE_EVERY_SEC,
 )
 
 # Import OpenCV library for camera control
 # pip install opencv-python
 import cv2
+
+# Import libcamera support for CSI cameras
+try:
+    from libcamera_capture import LibcameraCapture, detect_csi_cameras, is_libcamera_available
+    LIBCAMERA_AVAILABLE = True
+except ImportError:
+    LIBCAMERA_AVAILABLE = False
+    LibcameraCapture = None
+
+# No GPIO IR control (removed by user request)
 
 # --------------------------- LOGGING SETUP -------------------------------- #
 # Logging is like a diary for your program. It records what happens and any errors.
@@ -131,26 +146,53 @@ class MediaRelay:
             )  # When we started the current cycle
             self.label_shown = False  # Track if label is currently being shown
 
+        # Day/Night state
+        self.enable_day_night = ENABLE_DAY_NIGHT
+        self.current_mode = "day"  # default
+        self._last_luma_check = 0.0
+
     # ------------------------ START CAPTURE ------------------------------- #
-    def start_capture(self, camera_index=0):
-        # Start capturing video from the USB camera
+    def start_capture(self, camera_index=0, use_libcamera=False):
+        # Start capturing video from camera (USB or CSI)
         # camera_index: 0 = first camera, 1 = second, etc.
-        logger.info(
-            f"[MediaRelay] Opening camera {camera_index} with V4L2 backend..."
-        )
-        # Open camera using OpenCV and the V4L2 backend (best for Raspberry Pi)
-        self.cap = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)
-        if not self.cap.isOpened():
-            # If camera failed to open, raise an error and stop the program
-            raise RuntimeError(
-                f"Could not open camera {camera_index} with V4L2 backend"
+        # use_libcamera: True for CSI cameras, False for USB cameras
+        
+        if use_libcamera:
+            if not LIBCAMERA_AVAILABLE:
+                raise RuntimeError("Libcamera support not available. Install picamera2: pip install picamera2")
+            
+            logger.info(
+                f"[MediaRelay] Opening CSI camera {camera_index} with libcamera..."
             )
-        logger.info(
-            f"[MediaRelay] ✓ Camera {camera_index} opened successfully with V4L2"
-        )
+            self.cap = LibcameraCapture(camera_index)
+            if not self.cap.isOpened():
+                raise RuntimeError(
+                    f"Could not open CSI camera {camera_index} with libcamera"
+                )
+            logger.info(
+                f"[MediaRelay] ✓ CSI camera {camera_index} opened successfully with libcamera"
+            )
+        else:
+            logger.info(
+                f"[MediaRelay] Opening USB camera {camera_index} with V4L2 backend..."
+            )
+            # Open camera using OpenCV and the V4L2 backend (best for USB cameras)
+            self.cap = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)
+            if not self.cap.isOpened():
+                # If camera failed to open, raise an error and stop the program
+                raise RuntimeError(
+                    f"Could not open USB camera {camera_index} with V4L2 backend"
+                )
+            logger.info(
+                f"[MediaRelay] ✓ USB camera {camera_index} opened successfully with V4L2"
+            )
 
         # Enhanced camera configuration with multiple attempts
         self._configure_camera_settings(camera_index)
+        
+        # For libcamera, start the capture
+        if use_libcamera and hasattr(self.cap, 'start'):
+            self.cap.start()
 
         # Check final settings
         actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -274,6 +316,30 @@ class MediaRelay:
                 # Try to read one frame from the camera
                 ret, frame = self.cap.read()
                 if ret:
+                    # Optional: day/night switching using luminance from frame
+                    if self.enable_day_night and frame is not None:
+                        now = current_time
+                        if now - self._last_luma_check >= LUMA_SAMPLE_EVERY_SEC:
+                            self._last_luma_check = now
+                            # Compute normalized luma ~ mean of grayscale / 255.0
+                            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                            mean_luma = float(gray.mean()) / 255.0
+                            new_mode = self.current_mode
+                            if self.current_mode == "day" and mean_luma < NIGHT_LUMA_THRESHOLD:
+                                new_mode = "night"
+                            elif self.current_mode == "night" and mean_luma > DAY_LUMA_THRESHOLD:
+                                new_mode = "day"
+                            if new_mode != self.current_mode:
+                                self.current_mode = new_mode
+                                try:
+                                    if hasattr(self.cap, "set_day_mode") and hasattr(self.cap, "set_night_mode"):
+                                        if new_mode == "night":
+                                            self.cap.set_night_mode()
+                                        else:
+                                            self.cap.set_day_mode()
+                                    logger.info(f"[MediaRelay] Day/Night switched to {new_mode} (mean luma={mean_luma:.3f})")
+                                except Exception:
+                                    pass
                     # Add WNCC STEM Club label timing logic (only if enabled for this camera)
                     if self.enable_overlay:
                         current_cycle_time = (
@@ -593,75 +659,113 @@ relay1: Optional["MediaRelay"] = None  # Plant bed camera
 
 def find_working_camera():
     """
-    Find a working camera efficiently.
-    Returns the camera index if found, None otherwise.
+    Find a working camera efficiently (USB or CSI).
+    Returns tuple of (camera_index, use_libcamera) if found, (None, False) otherwise.
     """
+    # First, check for CSI cameras if libcamera is available
+    if LIBCAMERA_AVAILABLE and is_libcamera_available():
+        logger.info("Checking for CSI cameras with libcamera...")
+        csi_cameras = detect_csi_cameras()
+        if csi_cameras:
+            logger.info(f"Found CSI cameras: {csi_cameras}")
+            # Try first CSI camera
+            try:
+                test_cap = LibcameraCapture(0)
+                if test_cap.isOpened():
+                    logger.info(f"✓ CSI camera 0 is working")
+                    test_cap.release()
+                    return (0, True)
+                test_cap.release()
+            except Exception as e:
+                logger.warning(f"CSI camera test failed: {e}")
+    
     # If user specified a known camera index, try that first (fastest startup)
     if KNOWN_CAMERA_INDEX is not None:
-        logger.info(f"Trying known camera index {KNOWN_CAMERA_INDEX}...")
+        logger.info(f"Trying known USB camera index {KNOWN_CAMERA_INDEX}...")
         test_cap = cv2.VideoCapture(KNOWN_CAMERA_INDEX, cv2.CAP_V4L2)
         if test_cap.isOpened():
             ret, frame = test_cap.read()
             if ret and frame is not None:
-                logger.info(f"✓ Known camera {KNOWN_CAMERA_INDEX} is working")
+                logger.info(f"✓ Known USB camera {KNOWN_CAMERA_INDEX} is working")
                 test_cap.release()
-                return KNOWN_CAMERA_INDEX
+                return (KNOWN_CAMERA_INDEX, False)
             else:
                 logger.warning(
-                    f"Known camera {KNOWN_CAMERA_INDEX} opens but cannot capture frames"
+                    f"Known USB camera {KNOWN_CAMERA_INDEX} opens but cannot capture frames"
                 )
         else:
-            logger.warning(f"Known camera {KNOWN_CAMERA_INDEX} not available")
+            logger.warning(f"Known USB camera {KNOWN_CAMERA_INDEX} not available")
         test_cap.release()
 
-    # If known camera failed or not specified, search for cameras
-    logger.info("Detecting available cameras...")
+    # If known camera failed or not specified, search for USB cameras
+    logger.info("Detecting available USB cameras...")
     for cam_idx in range(4):
-        logger.info(f"Testing camera {cam_idx} with V4L2...")
+        logger.info(f"Testing USB camera {cam_idx} with V4L2...")
         test_cap = cv2.VideoCapture(cam_idx, cv2.CAP_V4L2)
         if test_cap.isOpened():
             ret, frame = test_cap.read()
             if ret and frame is not None:
-                logger.info(f"✓ Found working camera at index {cam_idx}")
+                logger.info(f"✓ Found working USB camera at index {cam_idx}")
                 test_cap.release()
-                return cam_idx
+                return (cam_idx, False)
             else:
                 logger.warning(
-                    f"Camera {cam_idx} opens but cannot capture frames"
+                    f"USB camera {cam_idx} opens but cannot capture frames"
                 )
         else:
-            logger.info(f"Camera {cam_idx} not available")
+            logger.info(f"USB camera {cam_idx} not available")
         test_cap.release()
 
-    return None
+    return (None, False)
 
 
 def main():
     global relay0, relay1  # Declare relays as global so they can be accessed by StreamingHandler
 
     # Print status messages to help users understand what's happening
-    logger.info("Starting dual camera streaming server with V4L2 backend...")
+    logger.info("Starting dual camera streaming server...")
     logger.info("Camera 0: Fish Tank | Camera 2: Plant Bed")
+    
+    # Detect if libcamera is available
+    if LIBCAMERA_AVAILABLE:
+        logger.info("Libcamera support available for CSI cameras")
+    
+    # Try to detect camera type for camera 0 (Fish Tank)
+    use_libcamera_0 = False
+    if LIBCAMERA_AVAILABLE and is_libcamera_available():
+        csi_cameras = detect_csi_cameras()
+        if 0 in csi_cameras:
+            use_libcamera_0 = True
+            logger.info("Camera 0 detected as CSI camera")
 
     # Initialize camera relay for fish tank (camera 0) with overlay enabled
     relay0 = MediaRelay(
         enable_overlay=True,
         rotation_angle=0,
-        width=FISH_CAMERA_WIDTH,
-        height=FISH_CAMERA_HEIGHT,
-        frame_rate=FISH_CAMERA_FRAME_RATE,
+        width=CAMERA_WIDTH,
+        height=CAMERA_HEIGHT,
+        frame_rate=CAMERA_FRAME_RATE,
         max_stream_fps=FISH_CAMERA_MAX_STREAM_FPS,
     )
     try:
-        relay0.start_capture(camera_index=0)
+        relay0.start_capture(camera_index=0, use_libcamera=use_libcamera_0)
+        cam_type_0 = "CSI" if use_libcamera_0 else "USB"
         logger.info(
-            f"✓ Fish Tank camera (camera 0) initialized successfully with overlay at {FISH_CAMERA_WIDTH}x{FISH_CAMERA_HEIGHT} @ {FISH_CAMERA_FRAME_RATE} FPS (max stream: {FISH_CAMERA_MAX_STREAM_FPS} FPS)"
+            f"✓ Fish Tank camera ({cam_type_0} camera 0) initialized successfully with overlay at {CAMERA_WIDTH}x{CAMERA_HEIGHT} @ {CAMERA_FRAME_RATE} FPS (max stream: {FISH_CAMERA_MAX_STREAM_FPS} FPS)"
         )
     except Exception as e:
         logger.error(
             f"✗ Fish Tank camera (camera 0) failed to initialize: {e}"
         )
         relay0 = None
+
+    # Try to detect camera type for camera 2 (Plant Bed)
+    use_libcamera_2 = False
+    if LIBCAMERA_AVAILABLE and is_libcamera_available():
+        csi_cameras = detect_csi_cameras()
+        if 1 in csi_cameras:  # Second CSI camera would be index 1
+            use_libcamera_2 = True
+            logger.info("Camera 2 (Plant Bed) detected as CSI camera")
 
     # PlantCam (camera 2) is used for plants in the aquaponics system
     # It is mounted upside down, so we rotate the image 180 degrees
@@ -675,9 +779,12 @@ def main():
         max_stream_fps=PLANT_CAMERA_MAX_STREAM_FPS,
     )
     try:
-        relay1.start_capture(camera_index=2)
+        # For second CSI camera, use index 1 instead of 2
+        plant_cam_index = 1 if use_libcamera_2 else 2
+        relay1.start_capture(camera_index=plant_cam_index, use_libcamera=use_libcamera_2)
+        cam_type_1 = "CSI" if use_libcamera_2 else "USB"
         logger.info(
-            f"✓ Plant Bed camera (camera 2) initialized successfully without overlay, rotated 180° at {PLANT_CAMERA_WIDTH}x{PLANT_CAMERA_HEIGHT} @ {PLANT_CAMERA_FRAME_RATE} FPS (max stream: {PLANT_CAMERA_MAX_STREAM_FPS} FPS)"
+            f"✓ Plant Bed camera ({cam_type_1} camera {plant_cam_index}) initialized successfully without overlay, rotated 180° at {PLANT_CAMERA_WIDTH}x{PLANT_CAMERA_HEIGHT} @ {PLANT_CAMERA_FRAME_RATE} FPS (max stream: {PLANT_CAMERA_MAX_STREAM_FPS} FPS)"
         )
     except Exception as e:
         logger.error(

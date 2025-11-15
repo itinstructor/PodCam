@@ -73,31 +73,19 @@ TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 # You can change these to adjust the video quality and frame rate.
 
 # Fish Tank Camera (Camera 0) Frame Rate Settings
-FISH_CAMERA_FRAME_RATE = (
-    10.0  # How many pictures per second we want the fish camera to take
+CAMERA_FRAME_RATE = (
+    20.0  # How many pictures per second we want the fish camera to take
 )
 FISH_CAMERA_MAX_STREAM_FPS = (
     10.0  # Maximum FPS to send to clients for fish camera
-)
-
-# Plant Bed Camera (Camera 2) Frame Rate Settings
-PLANT_CAMERA_FRAME_RATE = (
-    5.0  # How many pictures per second we want the plant camera to take
-)
-PLANT_CAMERA_MAX_STREAM_FPS = (
-    5.0  # Maximum FPS to send to clients for plant camera
 )
 
 # Note: Some cameras may ignore frame rate settings and use their own preferred rate.
 # This is normal hardware behavior - the camera will tell us what it's actually using.
 
 # Fish Tank Camera (Camera 0) Resolution
-FISH_CAMERA_WIDTH = 1280
-FISH_CAMERA_HEIGHT = 720
-
-# Plant Bed Camera (Camera 2) Resolution
-PLANT_CAMERA_WIDTH = 640
-PLANT_CAMERA_HEIGHT = 480
+CAMERA_WIDTH = 1280
+CAMERA_HEIGHT = 720
 
 # JPEG compression quality (0-100, higher = better quality but more bandwidth)
 JPEG_QUALITY = 85  # Good balance between quality and bandwidth
@@ -107,3 +95,12 @@ JPEG_QUALITY = 85  # Good balance between quality and bandwidth
 KNOWN_CAMERA_INDEX = 0
 
 # Note: Overlay configuration is now imported from PodsInSpace_config.py
+
+# ---------------------- DAY/NIGHT CONFIG (software only) ----------------- #
+# Enable automatic day/night switching based on frame brightness
+ENABLE_DAY_NIGHT = False  # Set True to enable
+# Hysteresis thresholds on normalized luma (0.0-1.0). Use NIGHT < DAY.
+NIGHT_LUMA_THRESHOLD = 0.25
+DAY_LUMA_THRESHOLD = 0.35
+# How often (seconds) to sample brightness to consider switching
+LUMA_SAMPLE_EVERY_SEC = 5.0
