@@ -548,7 +548,7 @@ def thingspeak_send(temp, hum, bp, moisture):
             f"field1(humidity)={hum:.1f}%, "
             f"field2(temp)={temp:.1f}°F, "
             f"field3(pressure)={bp:.2f} inHg, "
-            + (f"field4(moisture)={moisture:.1f}%")
+            + (f"field4(moisture)={moisture:.1f}%" if moisture is not None else "field4(moisture)=")
         )
     except Exception:
         pass
