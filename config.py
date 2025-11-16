@@ -101,3 +101,17 @@ NIGHT_LUMA_THRESHOLD = 0.25
 DAY_LUMA_THRESHOLD = 0.35
 # How often (seconds) to sample brightness to consider switching
 LUMA_SAMPLE_EVERY_SEC = 5.0
+
+# ---------------------- RGB LED COLOR CORRECTION ----------------------- #
+# Adjust colors to compensate for RGB LED lighting
+ENABLE_RGB_LED_CORRECTION = False  # Set True to apply color correction
+
+# RGB multipliers for white balance adjustment (1.0 = no change)
+# Increase values to boost that channel, decrease to reduce
+# Typical RGB LED correction: reduce blue, slightly boost red/green
+RGB_CORRECTION_RED = 1.0    # Red channel multiplier (0.5-1.5)
+RGB_CORRECTION_GREEN = 1.0  # Green channel multiplier (0.5-1.5)
+RGB_CORRECTION_BLUE = 0.85  # Blue channel multiplier (0.5-1.5) - reduce for warm tone
+
+# Optional: Gamma correction for brightness curve adjustment
+RGB_LED_GAMMA = 1.0  # Gamma value (0.5=darker, 1.0=no change, 1.5=brighter)

@@ -39,6 +39,7 @@
 import os  # For file system operations and path handling
 import socketserver  # For creating network servers that handle multiple clients
 import time  # For adding delays and timing operations
+import numpy as np  # For numerical operations and color correction
 from http import server  # For creating HTTP web servers
 from threading import (
     Condition,  # For synchronizing threads (like a traffic signal)
@@ -67,6 +68,12 @@ from config import (
     NIGHT_LUMA_THRESHOLD,
     DAY_LUMA_THRESHOLD,
     LUMA_SAMPLE_EVERY_SEC,
+    # RGB LED color correction
+    ENABLE_RGB_LED_CORRECTION,
+    RGB_CORRECTION_RED,
+    RGB_CORRECTION_GREEN,
+    RGB_CORRECTION_BLUE,
+    RGB_LED_GAMMA,
 )
 
 # Import OpenCV library for camera control
@@ -91,6 +98,49 @@ except ImportError:
 
 # Setup logging for web_stream module
 logger = get_logger("web_stream", enable_console=True)
+
+
+# -------------------- RGB LED COLOR CORRECTION ---------------------------- #
+def apply_rgb_led_correction(frame, red_mult=1.0, green_mult=1.0, blue_mult=1.0, gamma=1.0):
+    """
+    Apply color correction for RGB LED lighting.
+    
+    Args:
+        frame: BGR numpy array from camera
+        red_mult: Red channel multiplier (1.0 = no change)
+        green_mult: Green channel multiplier (1.0 = no change)
+        blue_mult: Blue channel multiplier (1.0 = no change)
+        gamma: Gamma correction (1.0 = no change, <1 darker, >1 brighter)
+    
+    Returns:
+        Corrected BGR frame
+    """
+    if frame is None:
+        return frame
+    
+    # Split BGR channels
+    b, g, r = cv2.split(frame)
+    
+    # Apply multipliers with clipping to valid range [0, 255]
+    if blue_mult != 1.0:
+        b = np.clip(b.astype(np.float32) * blue_mult, 0, 255).astype(np.uint8)
+    if green_mult != 1.0:
+        g = np.clip(g.astype(np.float32) * green_mult, 0, 255).astype(np.uint8)
+    if red_mult != 1.0:
+        r = np.clip(r.astype(np.float32) * red_mult, 0, 255).astype(np.uint8)
+    
+    # Merge channels back
+    corrected = cv2.merge([b, g, r])
+    
+    # Apply gamma correction if needed
+    if gamma != 1.0:
+        # Build lookup table for gamma correction
+        inv_gamma = 1.0 / gamma
+        table = np.array([((i / 255.0) ** inv_gamma) * 255
+                          for i in np.arange(0, 256)]).astype(np.uint8)
+        corrected = cv2.LUT(corrected, table)
+    
+    return corrected
 
 
 # --------------------- MEDIA RELAY (FRAME BROADCASTER) -------------------- #
@@ -309,7 +359,21 @@ class MediaRelay:
                 # Try to read one frame from the camera
                 ret, frame = self.cap.read()
                 if ret:
+                    # Apply RGB LED color correction (OPTIMAL LOCATION: early in pipeline)
+                    if ENABLE_RGB_LED_CORRECTION and frame is not None:
+                        try:
+                            frame = apply_rgb_led_correction(
+                                frame,
+                                red_mult=RGB_CORRECTION_RED,
+                                green_mult=RGB_CORRECTION_GREEN,
+                                blue_mult=RGB_CORRECTION_BLUE,
+                                gamma=RGB_LED_GAMMA
+                            )
+                        except Exception as e:
+                            logger.debug(f"[MediaRelay] RGB LED correction failed: {e}")
+                    
                     # Optional: day/night switching using luminance from frame
+                    # (now uses corrected frame for accurate luminance)
                     if self.enable_day_night and frame is not None:
                         now = current_time
                         if now - self._last_luma_check >= LUMA_SAMPLE_EVERY_SEC:
