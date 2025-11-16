@@ -466,6 +466,40 @@ class MediaRelay:
                         frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
                     # Convert the frame to JPEG format with controlled quality for web streaming
+                    # ---------------- Day/Night corner label -----------------
+                    if self.enable_day_night and frame is not None:
+                        mode_text = "DAY" if self.current_mode == "day" else "NIGHT"
+                        font = cv2.FONT_HERSHEY_SIMPLEX
+                        dn_scale = 0.6
+                        dn_thickness = 2
+                        try:
+                            (mtw, mth), _ = cv2.getTextSize(mode_text, font, dn_scale, dn_thickness)
+                            pad = 6
+                            # Guard against unexpected empty dimensions
+                            if mtw > 0 and mth > 0:
+                                x2 = max(0, frame.shape[1] - mtw - pad - 8)
+                                y2 = pad + mth + 2
+                                bg_color = (0, 120, 0) if self.current_mode == "day" else (0, 0, 160)
+                                txt_color = (255, 255, 255)
+                                cv2.rectangle(
+                                    frame,
+                                    (x2 - pad, y2 - mth - pad),
+                                    (x2 + mtw + pad, y2 + pad // 2),
+                                    bg_color,
+                                    -1,
+                                )
+                                cv2.putText(
+                                    frame,
+                                    mode_text,
+                                    (x2, y2),
+                                    font,
+                                    dn_scale,
+                                    txt_color,
+                                    dn_thickness,
+                                    cv2.LINE_AA,
+                                )
+                        except Exception as e:
+                            logger.debug(f"[MediaRelay] Day/Night label draw failed: {e}")
                     encode_params = [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY]
                     _, buffer = cv2.imencode(".jpg", frame, encode_params)
                     frame_bytes = buffer.tobytes()
