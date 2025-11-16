@@ -104,14 +104,14 @@ LUMA_SAMPLE_EVERY_SEC = 5.0
 
 # ---------------------- RGB LED COLOR CORRECTION ----------------------- #
 # Adjust colors to compensate for RGB LED lighting
-ENABLE_RGB_LED_CORRECTION = True  # Set True to apply color correction
+ENABLE_RGB_LED_CORRECTION = True  # Apply correction to live stream
 
 # RGB multipliers for white balance adjustment (1.0 = no change)
-# Increase values to boost that channel, decrease to reduce
-# Typical RGB LED correction: reduce blue, slightly boost red/green
-RGB_CORRECTION_RED = 1.0    # Red channel multiplier (0.5-1.5)
-RGB_CORRECTION_GREEN = 1.0  # Green channel multiplier (0.5-1.5)
-RGB_CORRECTION_BLUE = 0.85  # Blue channel multiplier (0.5-1.5) - reduce for warm tone
+# Magenta cast = too little green vs red+blue. Boost green and slightly
+# reduce red/blue until soil looks natural.
+RGB_CORRECTION_RED = 0.95    # Slightly reduce red
+RGB_CORRECTION_GREEN = 1.25  # Boost green to counter magenta
+RGB_CORRECTION_BLUE = 0.90   # Slightly reduce blue
 
 # Optional: Gamma correction for brightness curve adjustment
-RGB_LED_GAMMA = 1.0  # Gamma value (0.5=darker, 1.0=no change, 1.5=brighter)
+RGB_LED_GAMMA = 1.0  # 1.0 keeps brightness unchanged
