@@ -104,7 +104,7 @@ LUMA_SAMPLE_EVERY_SEC = 5.0
 
 # ---------------------- RGB LED COLOR CORRECTION ----------------------- #
 # Adjust colors to compensate for RGB LED lighting
-ENABLE_RGB_LED_CORRECTION = False  # Set True to apply color correction
+ENABLE_RGB_LED_CORRECTION = True  # Set True to apply color correction
 
 # RGB multipliers for white balance adjustment (1.0 = no change)
 # Increase values to boost that channel, decrease to reduce
