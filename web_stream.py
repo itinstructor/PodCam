@@ -526,12 +526,15 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
     def do_GET(self):
         # This method handles GET requests from browsers (like when you type a URL)
         # It decides what to send back based on the requested path
-        if self.path == "/":
+        # Strip query parameters (e.g., ?t=timestamp) for path matching
+        path = self.path.split('?')[0]
+        
+        if path == "/":
             # Redirect root path to the main page
             self.send_response(301)
             self.send_header("Location", "/index.html")
             self.end_headers()
-        elif self.path == "/index.html":
+        elif path == "/index.html":
             # Send the main HTML page
             content = PAGE.encode("utf-8")
             self.send_response(200)
@@ -539,10 +542,10 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(content)))
             self.end_headers()
             self.wfile.write(content)
-        elif self.path == "/stream0.mjpg":
+        elif path == "/stream0.mjpg":
             # Handle Pod camera stream (camera 0)
             self._handle_stream_request(relay0, "Pod")
-        elif self.path == "/favicon.ico":
+        elif path == "/favicon.ico":
             # Handle favicon requests to prevent 404 errors
             self.send_response(204)  # No Content
             self.end_headers()
