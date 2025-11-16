@@ -5,7 +5,7 @@ Description: BME680 sensor abstraction module
 Provides temperature, humidity, and barometric pressure readings
 from Bosch BME680 sensor connected via I2C bus
 """
-
+# pip install bme680
 import bme680
 import os
 import sys

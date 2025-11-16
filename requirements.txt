@@ -6,7 +6,6 @@
 #   sudo apt install -y rpicam-apps (or libcamera-apps on older images)
 # If you use a virtualenv, create it with --system-site-packages so these apt packages are visible.
 
-
 # If using headless environment, replace with opencv-python-headless
 opencv-python  
 
