@@ -82,7 +82,7 @@ CAMERA_FRAME_RATE = (
 
 # Pod (Camera 0) Resolution
 CAMERA_WIDTH = 1280
-CAMERA_HEIGHT = 720
+CAMERA_HEIGHT = 1024
 
 # JPEG compression quality (0-100, higher = better quality but more bandwidth)
 JPEG_QUALITY = 85  # Good balance between quality and bandwidth
