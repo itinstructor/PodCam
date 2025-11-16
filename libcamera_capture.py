@@ -15,13 +15,15 @@ Requirements:
 - libcamera stack present (provided by Raspberry Pi OS / Debian)
 - picamera2 library (usually via apt: python3-picamera2)
 - rpicam-apps or libcamera-tools optional for CLI diagnostics
+
+sudo apt install libcamera-dev
 """
 
 import subprocess
 import time
-import numpy as np
-from typing import Optional, Tuple
-from threading import Thread, Lock
+# import numpy as np
+# from typing import Optional, Tuple
+from threading import Lock
 import logging
 import shutil
 

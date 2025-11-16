@@ -4,6 +4,8 @@ Video Recorder
 Simple menu-based program to capture video from the camera
 """
 
+# sudo apt install libcamera-dev
+
 import cv2
 import os
 import time
