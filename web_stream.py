@@ -540,11 +540,8 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(content)
         elif self.path == "/stream0.mjpg":
-            # Handle fish tank camera stream (camera 0)
-            self._handle_stream_request(relay0, "Fish Tank")
-        elif self.path == "/stream1.mjpg":
-            # Handle plant bed camera stream (camera 2)
-            self._handle_stream_request(relay1, "Plant Bed")
+            # Handle Pod camera stream (camera 0)
+            self._handle_stream_request(relay0, "Pod")
         elif self.path == "/favicon.ico":
             # Handle favicon requests to prevent 404 errors
             self.send_response(204)  # No Content
@@ -638,11 +635,9 @@ class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
 
 
 # ======================= GLOBAL VARIABLES ================================= #
-# Global MediaRelay objects that will be initialized in main()
-# relay0 for fish tank (camera 0), relay1 for plants (camera 2)
-relay0: Optional["MediaRelay"] = None  # Fish tank camera
-relay1: Optional["MediaRelay"] = None  # Plant bed camera
-
+# Global MediaRelay object that will be initialized in main()
+# relay0 for Pod camera (camera 0)
+relay0: Optional["MediaRelay"] = None  # Pod camera
 
 # ====================== MAIN PROGRAM STARTS HERE ========================== #
 # This is where the actual program execution begins.
@@ -713,7 +708,7 @@ def find_working_camera():
 
 
 def main():
-    global relay0, relay1  # Declare relays as global so they can be accessed by StreamingHandler
+    global relay0  # Declare relay as global so it can be accessed by StreamingHandler
 
     # Print status messages to help users understand what's happening
     logger.info("Starting Pod camera streaming server...")
@@ -750,42 +745,6 @@ def main():
             f"✗ Pod camera (camera 0) failed to initialize: {e}"
         )
         relay0 = None
-
-    # No second camera for single-camera Pod setup
-    relay1 = None
-
-    # Try to detect camera type for camera 2 (Plant Bed) - REMOVED
-    use_libcamera_2 = False
-    if LIBCAMERA_AVAILABLE and is_libcamera_available():
-        csi_cameras = detect_csi_cameras()
-        if 1 in csi_cameras:  # Second CSI camera would be index 1
-            use_libcamera_2 = True
-            logger.info("Camera 2 (Plant Bed) detected as CSI camera")
-
-    # PlantCam (camera 2) is used for plants in the aquaponics system
-    # It is mounted upside down, so we rotate the image 180 degrees
-    # Initialize camera relay for plant bed (camera 2) with overlay disabled and 180° rotation
-    relay1 = MediaRelay(
-        enable_overlay=False,
-        rotation_angle=180,
-        width=PLANT_CAMERA_WIDTH,
-        height=PLANT_CAMERA_HEIGHT,
-        frame_rate=PLANT_CAMERA_FRAME_RATE,
-        max_stream_fps=PLANT_CAMERA_MAX_STREAM_FPS,
-    )
-    try:
-        # For second CSI camera, use index 1 instead of 2
-        plant_cam_index = 1 if use_libcamera_2 else 2
-        relay1.start_capture(camera_index=plant_cam_index, use_libcamera=use_libcamera_2)
-        cam_type_1 = "CSI" if use_libcamera_2 else "USB"
-        logger.info(
-            f"✓ Plant Bed camera ({cam_type_1} camera {plant_cam_index}) initialized successfully without overlay, rotated 180° at {PLANT_CAMERA_WIDTH}x{PLANT_CAMERA_HEIGHT} @ {PLANT_CAMERA_FRAME_RATE} FPS (max stream: {PLANT_CAMERA_MAX_STREAM_FPS} FPS)"
-        )
-    except Exception as e:
-        logger.error(
-            f"✗ Plant Bed camera (camera 2) failed to initialize: {e}"
-        )
-        relay1 = None
 
     # Check if camera is working
     if relay0 is None:
@@ -824,22 +783,17 @@ def main():
             local_ip = socket.gethostbyname(hostname)
 
             # Print connection information for users
-            logger.info(f"Dual camera streaming server started successfully!")
-            logger.info(f"Dual camera view: http://localhost:8000/")
+            logger.info(f"Pod camera streaming server started successfully!")
+            logger.info(f"Pod camera view: http://localhost:8000/")
             logger.info(f"Network access: http://{local_ip}:8000/")
             logger.info(f"Raspberry Pi access: http://{hostname}.local:8000/")
-            if relay0:
-                logger.info(
-                    f"Fish Tank stream: http://{local_ip}:8000/stream0.mjpg"
-                )
-            if relay1:
-                logger.info(
-                    f"Plant Bed stream: http://{local_ip}:8000/stream1.mjpg"
-                )
+            logger.info(
+                f"Pod camera stream: http://{local_ip}:8000/stream0.mjpg"
+            )
         except:
             # If we can't get the IP address, just show localhost
             logger.info(
-                "Dual camera streaming server started on http://localhost:8000/"
+                "Pod camera streaming server started on http://localhost:8000/"
             )
 
         logger.info("Press Ctrl+C to stop the server")
@@ -858,13 +812,10 @@ def main():
         # This block always runs, even if an error occurred
         # It ensures we clean up resources properly
 
-        # Stop both camera capture threads and close camera connections
+        # Stop camera capture thread and close camera connection
         if relay0:
             relay0.stop()
-            logger.info("Fish Tank camera stopped")
-        if relay1:
-            relay1.stop()
-            logger.info("Plant Bed camera stopped")
+            logger.info("Pod camera stopped")
 
         logger.info("Cleanup completed. Goodbye!")
 
