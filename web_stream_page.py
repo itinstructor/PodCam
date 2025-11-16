@@ -67,6 +67,16 @@ body {
         Resolution: 1280x720 | Quality: 85% | Frame Rate: Up to 20 FPS<br>
         Optimized for monitoring with reduced bandwidth usage<br>
         <p>Direct stream URL: <a href="/stream0.mjpg">Pod Camera Stream</a></p>
+        <p>
+            <strong>White Balance:</strong>
+            <a href="/wb/calibrate">Calibrate (full frame)</a> |
+            <a href="/wb/calibrate?roi=center&size=0.45">Calibrate Center ROI</a> |
+            <a href="/wb/preview?roi=center&size=0.45" target="_blank">Preview ROI Gains</a> |
+            <a href="/wb/locked">Lock</a> |
+            <a href="/wb/auto">Auto</a> |
+            <a href="/wb/off">Off</a> |
+            <a href="/wb/clear">Clear Calibration</a>
+        </p>
     </div>
 </div>
 </body>

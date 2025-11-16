@@ -115,3 +115,24 @@ RGB_CORRECTION_BLUE = 0.90   # Slightly reduce blue
 
 # Optional: Gamma correction for brightness curve adjustment
 RGB_LED_GAMMA = 1.0  # 1.0 keeps brightness unchanged
+
+# Software White Balance (in addition to the base multipliers above)
+# Modes: "off" (no auto WB), "auto_grayworld" (estimate per-frame gains)
+WB_MODE = "auto_grayworld"
+
+# How quickly to adapt to new lighting (0.0-1.0). Lower = smoother.
+WB_ALPHA = 0.12
+
+# How often (in seconds) to recompute gains
+WB_UPDATE_EVERY_SEC = 3.0
+
+# Clamp range for auto gains to avoid extremes
+WB_GAIN_MIN = 0.5
+WB_GAIN_MAX = 2.0
+
+# Ignore very dark/bright pixels when computing gains to reduce bias
+WB_EXCLUDE_DARK = 25   # grayscale below this (0-255) is ignored
+WB_EXCLUDE_BRIGHT = 235  # grayscale above this is ignored
+
+# Persisted calibration file for "neutral-card" lock
+WB_CALIBRATION_FILE = "wb_calibration.json"

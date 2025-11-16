@@ -74,6 +74,15 @@ from config import (
     RGB_CORRECTION_GREEN,
     RGB_CORRECTION_BLUE,
     RGB_LED_GAMMA,
+    # Software white balance
+    WB_MODE,
+    WB_ALPHA,
+    WB_UPDATE_EVERY_SEC,
+    WB_GAIN_MIN,
+    WB_GAIN_MAX,
+    WB_EXCLUDE_DARK,
+    WB_EXCLUDE_BRIGHT,
+    WB_CALIBRATION_FILE,
 )
 
 # Import OpenCV library for camera control
@@ -194,6 +203,14 @@ class MediaRelay:
         self.current_mode = "day"  # default
         self._last_luma_check = 0.0
 
+        # Software white balance state
+        self.wb_mode = WB_MODE
+        self._wb_last_update = 0.0
+        # Order: (R, G, B)
+        self._wb_gains = [1.0, 1.0, 1.0]
+        # Keep last uncorrected frame for calibration
+        self._last_uncorrected = None
+
     # ------------------------ START CAPTURE ------------------------------- #
     def start_capture(self, camera_index=0, use_libcamera=False):
         # Start capturing video from camera (USB or CSI)
@@ -267,6 +284,12 @@ class MediaRelay:
             time.sleep(0.1)  # Small delay between warm-up frames
         logger.info("[MediaRelay] Camera warm-up complete")
 
+        # Try loading persisted WB calibration (if any)
+        try:
+            self._load_wb_calibration()
+        except Exception:
+            pass
+
         # Start the background thread to capture frames
         self.running = True
         self.capture_thread = Thread(target=self._capture_frames)
@@ -338,6 +361,166 @@ class MediaRelay:
             )
             return False
 
+    # -------------------- SOFTWARE WHITE BALANCE ------------------------ #
+    def _compute_grayworld_gains(self, frame):
+        """Estimate per-channel gains using grayworld assumption on a downscaled, masked frame.
+        Returns gains in (R, G, B) order.
+        """
+        try:
+            if frame is None or frame.size == 0:
+                return (1.0, 1.0, 1.0)
+
+            # Downscale to speed up
+            h, w = frame.shape[:2]
+            scale = 320.0 / max(w, 1)
+            if scale < 1.0:
+                small = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+            else:
+                small = frame
+
+            # Mask out very dark/bright pixels
+            gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+            mask = (gray >= WB_EXCLUDE_DARK) & (gray <= WB_EXCLUDE_BRIGHT)
+            if not np.any(mask):
+                return (1.0, 1.0, 1.0)
+
+            b, g, r = cv2.split(small)
+            # Use masked means
+            r_mean = float(r[mask].mean()) if np.any(mask) else 1.0
+            g_mean = float(g[mask].mean()) if np.any(mask) else 1.0
+            b_mean = float(b[mask].mean()) if np.any(mask) else 1.0
+
+            # Target is the average of the three channels
+            target = (r_mean + g_mean + b_mean) / 3.0
+            # Raw gains to bring each channel to target
+            r_gain = target / max(r_mean, 1e-6)
+            g_gain = target / max(g_mean, 1e-6)
+            b_gain = target / max(b_mean, 1e-6)
+
+            # Normalize to preserve overall brightness (fix G to 1.0 reference)
+            if g_gain > 0:
+                r_gain /= g_gain
+                b_gain /= g_gain
+                g_gain = 1.0
+
+            # Clamp to safe range
+            r_gain = float(np.clip(r_gain, WB_GAIN_MIN, WB_GAIN_MAX))
+            g_gain = float(np.clip(g_gain, WB_GAIN_MIN, WB_GAIN_MAX))
+            b_gain = float(np.clip(b_gain, WB_GAIN_MIN, WB_GAIN_MAX))
+
+            return (r_gain, g_gain, b_gain)
+        except Exception as e:
+            logger.debug(f"[MediaRelay] Grayworld gains computation failed: {e}")
+            return (1.0, 1.0, 1.0)
+
+    def _update_auto_wb(self, frame, now_ts):
+        """Update internal WB gains periodically with EMA smoothing."""
+        if self.wb_mode != "auto_grayworld":
+            return
+        if (now_ts - self._wb_last_update) < WB_UPDATE_EVERY_SEC:
+            return
+        self._wb_last_update = now_ts
+
+        r_gain, g_gain, b_gain = self._compute_grayworld_gains(frame)
+        # EMA smoothing
+        self._wb_gains[0] = (1 - WB_ALPHA) * self._wb_gains[0] + WB_ALPHA * r_gain
+        self._wb_gains[1] = (1 - WB_ALPHA) * self._wb_gains[1] + WB_ALPHA * g_gain
+        self._wb_gains[2] = (1 - WB_ALPHA) * self._wb_gains[2] + WB_ALPHA * b_gain
+        logger.debug(
+            f"[MediaRelay] WB gains updated (R,G,B) -> ({self._wb_gains[0]:.3f}, {self._wb_gains[1]:.3f}, {self._wb_gains[2]:.3f})"
+        )
+
+    def _extract_roi(self, frame, roi_mode: str = "", size_fraction: float = 0.45):
+        """Return ROI of frame based on mode; supports 'center' square ROI.
+        Falls back to full frame on errors.
+        """
+        try:
+            if frame is None or not roi_mode:
+                return frame
+            mode = (roi_mode or "").lower()
+            if mode == "center":
+                h, w = frame.shape[:2]
+                s = int(max(1, min(h, w) * float(size_fraction)))
+                cx, cy = w // 2, h // 2
+                x1 = max(0, cx - s // 2)
+                y1 = max(0, cy - s // 2)
+                x2 = min(w, x1 + s)
+                y2 = min(h, y1 + s)
+                return frame[y1:y2, x1:x2]
+            return frame
+        except Exception:
+            return frame
+
+    def _save_wb_calibration(self):
+        try:
+            data = {
+                "mode": "locked",
+                "gains": {
+                    "r": float(self._wb_gains[0]),
+                    "g": float(self._wb_gains[1]),
+                    "b": float(self._wb_gains[2]),
+                },
+                "timestamp": time.time(),
+            }
+            # Save next to this script
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            path = os.path.join(base_dir, WB_CALIBRATION_FILE)
+            import json
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            logger.info(f"[MediaRelay] WB calibration saved to {path}")
+        except Exception as e:
+            logger.warning(f"[MediaRelay] Failed to save WB calibration: {e}")
+
+    def _load_wb_calibration(self):
+        try:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            path = os.path.join(base_dir, WB_CALIBRATION_FILE)
+            if not os.path.exists(path):
+                return False
+            import json
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            gains = data.get("gains", {})
+            r = float(gains.get("r", 1.0))
+            g = float(gains.get("g", 1.0))
+            b = float(gains.get("b", 1.0))
+            # Clamp
+            r = float(np.clip(r, WB_GAIN_MIN, WB_GAIN_MAX))
+            g = float(np.clip(g, WB_GAIN_MIN, WB_GAIN_MAX))
+            b = float(np.clip(b, WB_GAIN_MIN, WB_GAIN_MAX))
+            self._wb_gains = [r, g, b]
+            self.wb_mode = "locked"
+            logger.info(
+                f"[MediaRelay] WB calibration loaded. Locked gains (R,G,B)=({r:.3f}, {g:.3f}, {b:.3f})"
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"[MediaRelay] Failed to load WB calibration: {e}")
+            return False
+
+    def calibrate_from_last_frame(self, roi_mode: str = "", size_fraction: float = 0.45):
+        """Compute grayworld gains from the last uncorrected frame and lock WB.
+        Optional ROI selection via roi_mode and size_fraction.
+        """
+        src = self._last_uncorrected
+        if src is None:
+            raise RuntimeError("No recent frame available for calibration")
+        src_roi = self._extract_roi(src, roi_mode=roi_mode, size_fraction=size_fraction)
+        r_gain, g_gain, b_gain = self._compute_grayworld_gains(src_roi)
+        self._wb_gains = [r_gain, g_gain, b_gain]
+        self.wb_mode = "locked"
+        self._save_wb_calibration()
+        return tuple(self._wb_gains)
+
+    def preview_calibration(self, roi_mode: str = "", size_fraction: float = 0.45):
+        """Compute proposed grayworld gains from the last uncorrected frame without applying."""
+        src = self._last_uncorrected
+        if src is None:
+            raise RuntimeError("No recent frame available for preview")
+        src_roi = self._extract_roi(src, roi_mode=roi_mode, size_fraction=size_fraction)
+        return self._compute_grayworld_gains(src_roi)
+
     # ------------------------ CAPTURE FRAMES ------------------------------- #
     def _capture_frames(self):
         """This method runs in a background thread and keeps grabbing frames from the camera
@@ -359,14 +542,23 @@ class MediaRelay:
                 # Try to read one frame from the camera
                 ret, frame = self.cap.read()
                 if ret:
+                    # Save an uncorrected copy for WB calibration before any processing
+                    try:
+                        self._last_uncorrected = frame.copy()
+                    except Exception:
+                        self._last_uncorrected = None
                     # Apply RGB LED color correction (OPTIMAL LOCATION: early in pipeline)
                     if ENABLE_RGB_LED_CORRECTION and frame is not None:
                         try:
+                            # Update auto WB gains periodically (if enabled)
+                            self._update_auto_wb(frame, current_time)
+                            wb_r, wb_g, wb_b = self._wb_gains
+                            # Combine base multipliers with auto gains
                             frame = apply_rgb_led_correction(
                                 frame,
-                                red_mult=RGB_CORRECTION_RED,
-                                green_mult=RGB_CORRECTION_GREEN,
-                                blue_mult=RGB_CORRECTION_BLUE,
+                                red_mult=RGB_CORRECTION_RED * wb_r,
+                                green_mult=RGB_CORRECTION_GREEN * wb_g,
+                                blue_mult=RGB_CORRECTION_BLUE * wb_b,
                                 gamma=RGB_LED_GAMMA
                             )
                         except Exception as e:
@@ -625,7 +817,15 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
         # This method handles GET requests from browsers (like when you type a URL)
         # It decides what to send back based on the requested path
         # Strip query parameters (e.g., ?t=timestamp) for path matching
-        path = self.path.split('?')[0]
+        full_path = self.path
+        path = full_path.split('?')[0]
+        # Parse query params for endpoints that use them
+        try:
+            from urllib.parse import parse_qs
+            qs = full_path.split('?', 1)[1] if '?' in full_path else ''
+            qparams = parse_qs(qs)
+        except Exception:
+            qparams = {}
         
         if path == "/":
             # Redirect root path to the main page
@@ -643,6 +843,126 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
         elif path == "/stream0.mjpg":
             # Handle Pod camera stream (camera 0)
             self._handle_stream_request(relay0, "Pod")
+        elif path == "/wb/status":
+            # Return white balance status and gains
+            try:
+                gains = getattr(relay0, "_wb_gains", [1.0, 1.0, 1.0]) if relay0 else [1.0, 1.0, 1.0]
+                mode = getattr(relay0, "wb_mode", "off") if relay0 else "off"
+                import json
+                payload = json.dumps({
+                    "mode": mode,
+                    "gains": {"r": gains[0], "g": gains[1], "b": gains[2]}
+                }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except Exception as e:
+                self.send_error(500, f"WB status error: {e}")
+        elif path == "/wb/calibrate":
+            # One-click neutral-card calibration: compute & lock gains from last frame
+            try:
+                if not relay0:
+                    raise RuntimeError("Camera not available")
+                # ROI options: roi=center&size=0.4 (fraction of min dimension)
+                roi_mode = (qparams.get('roi', [''])[0] or '').lower()
+                size_f = float(qparams.get('size', [0.45])[0])
+                size_f = max(0.05, min(0.95, size_f))
+                r, g, b = relay0.calibrate_from_last_frame(roi_mode=roi_mode, size_fraction=size_f)
+                msg = f"Calibrated and locked WB (R,G,B)=({r:.3f},{g:.3f},{b:.3f})"
+                body = msg.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self.send_error(500, f"Calibration failed: {e}")
+        elif path == "/wb/preview":
+            # Compute proposed gains without applying them (for UI/testing)
+            try:
+                if not relay0:
+                    raise RuntimeError("Camera not available")
+                roi_mode = (qparams.get('roi', [''])[0] or '').lower()
+                size_f = float(qparams.get('size', [0.45])[0])
+                size_f = max(0.05, min(0.95, size_f))
+                gains = relay0.preview_calibration(roi_mode=roi_mode, size_fraction=size_f)
+                import json
+                payload = json.dumps({
+                    "proposed_gains": {"r": gains[0], "g": gains[1], "b": gains[2]},
+                    "mode": relay0.wb_mode,
+                    "roi": roi_mode or "full",
+                    "size_fraction": size_f
+                }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except Exception as e:
+                self.send_error(500, f"WB preview failed: {e}")
+        elif path == "/wb/locked":
+            try:
+                if not relay0:
+                    raise RuntimeError("Camera not available")
+                relay0.wb_mode = "locked"
+                msg = "WB mode set to locked"
+                body = msg.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self.send_error(500, f"WB lock failed: {e}")
+        elif path == "/wb/auto":
+            try:
+                if not relay0:
+                    raise RuntimeError("Camera not available")
+                relay0.wb_mode = "auto_grayworld"
+                msg = "WB mode set to auto_grayworld"
+                body = msg.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self.send_error(500, f"WB auto set failed: {e}")
+        elif path == "/wb/off":
+            try:
+                if not relay0:
+                    raise RuntimeError("Camera not available")
+                relay0.wb_mode = "off"
+                relay0._wb_gains = [1.0, 1.0, 1.0]
+                msg = "WB mode set to off"
+                body = msg.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self.send_error(500, f"WB off failed: {e}")
+        elif path == "/wb/clear":
+            try:
+                # Delete calibration file; set auto mode
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                pathf = os.path.join(base_dir, WB_CALIBRATION_FILE)
+                if os.path.exists(pathf):
+                    os.remove(pathf)
+                if relay0:
+                    relay0.wb_mode = "auto_grayworld"
+                msg = "WB calibration cleared; mode set to auto"
+                body = msg.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self.send_error(500, f"WB clear failed: {e}")
         elif path == "/favicon.ico":
             # Handle favicon requests to prevent 404 errors
             self.send_response(204)  # No Content
