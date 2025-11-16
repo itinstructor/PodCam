@@ -76,14 +76,11 @@ TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 CAMERA_FRAME_RATE = (
     20.0  # How many pictures per second we want the fish camera to take
 )
-FISH_CAMERA_MAX_STREAM_FPS = (
-    10.0  # Maximum FPS to send to clients for fish camera
-)
 
 # Note: Some cameras may ignore frame rate settings and use their own preferred rate.
 # This is normal hardware behavior - the camera will tell us what it's actually using.
 
-# Fish Tank Camera (Camera 0) Resolution
+# Pod (Camera 0) Resolution
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 720
 

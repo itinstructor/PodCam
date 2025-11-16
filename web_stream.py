@@ -59,12 +59,7 @@ from config import (
     TEXT_COLOR,
     CAMERA_WIDTH,
     CAMERA_HEIGHT,
-    PLANT_CAMERA_WIDTH,
-    PLANT_CAMERA_HEIGHT,
     CAMERA_FRAME_RATE,
-    PLANT_CAMERA_FRAME_RATE,
-    FISH_CAMERA_MAX_STREAM_FPS,
-    PLANT_CAMERA_MAX_STREAM_FPS,
     JPEG_QUALITY,
     KNOWN_CAMERA_INDEX,
     # Day/Night config (software only)
@@ -118,7 +113,6 @@ class MediaRelay:
         width=1280,
         height=720,
         frame_rate=10.0,
-        max_stream_fps=10.0,
     ):
         # This will store the most recent camera frame as JPEG bytes
         self.frame = None
@@ -137,7 +131,6 @@ class MediaRelay:
         self.width = width
         self.height = height
         self.frame_rate = frame_rate
-        self.max_stream_fps = max_stream_fps
 
         # Label timing control (only initialize if label overlay is enabled for this camera)
         if self.enable_overlay:
@@ -300,7 +293,7 @@ class MediaRelay:
         """This method runs in a background thread and keeps grabbing frames from the camera
         It stores the latest frame and notifies all waiting clients"""
         frame_time = (
-            1.0 / self.max_stream_fps
+            1.0 / self.frame_rate
         )  # Calculate time between frames for rate limiting
         last_frame_time = 0
 
@@ -723,8 +716,8 @@ def main():
     global relay0, relay1  # Declare relays as global so they can be accessed by StreamingHandler
 
     # Print status messages to help users understand what's happening
-    logger.info("Starting dual camera streaming server...")
-    logger.info("Camera 0: Fish Tank | Camera 2: Plant Bed")
+    logger.info("Starting Pod camera streaming server...")
+    logger.info("Camera 0: Pod Camera")
     
     # Detect if libcamera is available
     if LIBCAMERA_AVAILABLE:
@@ -738,28 +731,30 @@ def main():
             use_libcamera_0 = True
             logger.info("Camera 0 detected as CSI camera")
 
-    # Initialize camera relay for fish tank (camera 0) with overlay enabled
+    # Initialize camera relay for Pod (camera 0) with overlay enabled
     relay0 = MediaRelay(
         enable_overlay=True,
         rotation_angle=0,
         width=CAMERA_WIDTH,
         height=CAMERA_HEIGHT,
         frame_rate=CAMERA_FRAME_RATE,
-        max_stream_fps=FISH_CAMERA_MAX_STREAM_FPS,
     )
     try:
         relay0.start_capture(camera_index=0, use_libcamera=use_libcamera_0)
         cam_type_0 = "CSI" if use_libcamera_0 else "USB"
         logger.info(
-            f"✓ Fish Tank camera ({cam_type_0} camera 0) initialized successfully with overlay at {CAMERA_WIDTH}x{CAMERA_HEIGHT} @ {CAMERA_FRAME_RATE} FPS (max stream: {FISH_CAMERA_MAX_STREAM_FPS} FPS)"
+            f"✓ Pod camera ({cam_type_0} camera 0) initialized successfully with overlay at {CAMERA_WIDTH}x{CAMERA_HEIGHT} @ {CAMERA_FRAME_RATE} FPS"
         )
     except Exception as e:
         logger.error(
-            f"✗ Fish Tank camera (camera 0) failed to initialize: {e}"
+            f"✗ Pod camera (camera 0) failed to initialize: {e}"
         )
         relay0 = None
 
-    # Try to detect camera type for camera 2 (Plant Bed)
+    # No second camera for single-camera Pod setup
+    relay1 = None
+
+    # Try to detect camera type for camera 2 (Plant Bed) - REMOVED
     use_libcamera_2 = False
     if LIBCAMERA_AVAILABLE and is_libcamera_available():
         csi_cameras = detect_csi_cameras()
@@ -792,22 +787,20 @@ def main():
         )
         relay1 = None
 
-    # Check if at least one camera is working
-    if relay0 is None and relay1 is None:
-        logger.error("No cameras could be initialized!")
+    # Check if camera is working
+    if relay0 is None:
+        logger.error("Pod camera could not be initialized!")
         logger.error("Please check:")
-        logger.error("  - USB cameras are connected properly")
-        logger.error("  - Cameras are not being used by another application")
+        logger.error("  - Camera is connected properly (USB or CSI)")
+        logger.error("  - Camera is not being used by another application")
         logger.error("  - Camera permissions: sudo usermod -a -G video $USER")
-        logger.error("  - Available devices: ls -la /dev/video*")
+        logger.error("  - For CSI: check ribbon cable and enable camera interface")
+        logger.error("  - For USB: ls -la /dev/video*")
         logger.error("  - V4L2 info: v4l2-ctl --list-devices")
         exit(1)
 
-    # Log which cameras are available
-    if relay0:
-        logger.info("Fish Tank camera available at: /stream0.mjpg")
-    if relay1:
-        logger.info("Plant Bed camera available at: /stream1.mjpg")
+    # Log camera availability
+    logger.info("Pod camera available at: /stream0.mjpg")
 
     # Now start the web server
     try:
