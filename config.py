@@ -81,8 +81,8 @@ CAMERA_FRAME_RATE = (
 # This is normal hardware behavior - the camera will tell us what it's actually using.
 
 # Pod (Camera 0) Resolution
-CAMERA_WIDTH = 1280
-CAMERA_HEIGHT = 1024
+CAMERA_WIDTH = 1920
+CAMERA_HEIGHT = 1080
 
 # JPEG compression quality (0-100, higher = better quality but more bandwidth)
 JPEG_QUALITY = 85  # Good balance between quality and bandwidth
