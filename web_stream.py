@@ -570,8 +570,9 @@ class MediaRelay:
                         now = current_time
                         if now - self._last_luma_check >= LUMA_SAMPLE_EVERY_SEC:
                             self._last_luma_check = now
-                            # Compute normalized luma ~ mean of grayscale / 255.0
-                            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                            # Compute normalized luma from the UNCORRECTED frame to avoid bias
+                            src_for_luma = self._last_uncorrected if self._last_uncorrected is not None else frame
+                            gray = cv2.cvtColor(src_for_luma, cv2.COLOR_BGR2GRAY)
                             mean_luma = float(gray.mean()) / 255.0
                             new_mode = self.current_mode
                             if self.current_mode == "day" and mean_luma < NIGHT_LUMA_THRESHOLD:
