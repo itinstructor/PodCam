@@ -97,10 +97,10 @@ KNOWN_CAMERA_INDEX = 0
 # Enable automatic day/night switching based on frame brightness
 ENABLE_DAY_NIGHT = True  # Set True to enable
 # Hysteresis thresholds on normalized luma (0.0-1.0). Use NIGHT < DAY.
-NIGHT_LUMA_THRESHOLD = 0.25
-DAY_LUMA_THRESHOLD = 0.35
+NIGHT_LUMA_THRESHOLD = 0.55
+DAY_LUMA_THRESHOLD = 0.65
 # How often (seconds) to sample brightness to consider switching
-LUMA_SAMPLE_EVERY_SEC = 5.0
+LUMA_SAMPLE_EVERY_SEC = 60.0
 
 # ---------------------- RGB LED COLOR CORRECTION ----------------------- #
 # Adjust colors to compensate for RGB LED lighting
