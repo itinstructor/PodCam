@@ -91,8 +91,6 @@ JPEG_QUALITY = 85  # Good balance between quality and bandwidth
 # Set to 0, 1, 2, etc. if you know your camera index, or None to auto-detect
 KNOWN_CAMERA_INDEX = 0
 
-# Note: Overlay configuration is now imported from PodsInSpace_config.py
-
 # ---------------------- DAY/NIGHT CONFIG (software only) ----------------- #
 # Enable automatic day/night switching based on frame brightness
 ENABLE_DAY_NIGHT = True  # Set True to enable
@@ -102,7 +100,7 @@ DAY_LUMA_THRESHOLD = 0.65
 # How often (seconds) to sample brightness to consider switching
 LUMA_SAMPLE_EVERY_SEC = 60.0
 
-# ---------------------- RGB LED COLOR CORRECTION ----------------------- #
+# ---------------------- RGB LED COLOR CORRECTION -------------------------- #
 # Adjust colors to compensate for RGB LED lighting
 ENABLE_RGB_LED_CORRECTION = True  # Apply correction to live stream
 
