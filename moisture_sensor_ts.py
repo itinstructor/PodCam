@@ -41,8 +41,8 @@ V_REF = 3.3  # Reference voltage (3.3V on Raspberry Pi)
 
 # Convert to percentage (adjust calibration values for your sensor)
 # Calibration: measure sensor in completely dry and completely wet conditions
-DRY_VALUE = 425  # ADC value in dry soil (calibrate this!)
-WET_VALUE = 1500  # ADC value in wet soil (calibrate this!)
+DRY_VALUE = 400  # ADC value in dry soil (calibrate this!)
+WET_VALUE = 1000  # ADC value in wet soil (calibrate this!)
 
 
 class MoistureSensorReader:
