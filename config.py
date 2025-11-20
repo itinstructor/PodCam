@@ -107,9 +107,9 @@ ENABLE_RGB_LED_CORRECTION = True  # Apply correction to live stream
 # RGB multipliers for white balance adjustment (1.0 = no change)
 # Magenta cast = too little green vs red+blue. Boost green and slightly
 # reduce red/blue until soil looks natural.
-RGB_CORRECTION_RED = 0.95    # Slightly reduce red
-RGB_CORRECTION_GREEN = 1.25  # Boost green to counter magenta
-RGB_CORRECTION_BLUE = 0.90   # Slightly reduce blue
+RGB_CORRECTION_RED = 1.0   # Slightly reduce red
+RGB_CORRECTION_GREEN = 1.0  # Boost green to counter magenta
+RGB_CORRECTION_BLUE = 1.0   # Slightly reduce blue
 
 # Optional: Gamma correction for brightness curve adjustment
 RGB_LED_GAMMA = 1.0  # 1.0 keeps brightness unchanged
