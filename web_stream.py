@@ -83,6 +83,11 @@ from config import (
     WB_EXCLUDE_DARK,
     WB_EXCLUDE_BRIGHT,
     WB_CALIBRATION_FILE,
+    # Night-only brightness boost
+    NIGHT_BRIGHTNESS_ENABLE,
+    NIGHT_BRIGHTNESS_ALPHA,
+    NIGHT_BRIGHTNESS_BETA,
+    NIGHT_EXTRA_GAMMA,
 )
 
 # Import OpenCV library for camera control
@@ -150,6 +155,29 @@ def apply_rgb_led_correction(frame, red_mult=1.0, green_mult=1.0, blue_mult=1.0,
         corrected = cv2.LUT(corrected, table)
     
     return corrected
+
+
+def apply_brightness_contrast_gamma(frame, alpha=1.0, beta=0.0, gamma=1.0):
+    """
+    Apply contrast (alpha), brightness (beta), and gamma adjustment to a frame.
+    - alpha: contrast multiplier (1.0 no change)
+    - beta: brightness offset (0 no change)
+    - gamma: gamma correction (>1.0 brightens midtones)
+    """
+    if frame is None:
+        return frame
+    out = frame
+    try:
+        if alpha != 1.0 or beta != 0.0:
+            # ConvertScaleAbs: dst = saturate(|alpha*src + beta|)
+            out = cv2.convertScaleAbs(out, alpha=float(alpha), beta=float(beta))
+        if gamma != 1.0:
+            inv_gamma = 1.0 / float(gamma)
+            table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype(np.uint8)
+            out = cv2.LUT(out, table)
+        return out
+    except Exception:
+        return frame
 
 
 # --------------------- MEDIA RELAY (FRAME BROADCASTER) -------------------- #
@@ -590,6 +618,18 @@ class MediaRelay:
                                     logger.info(f"[MediaRelay] Day/Night switched to {new_mode} (mean luma={mean_luma:.3f})")
                                 except Exception:
                                     pass
+                    # Night-only brightness boost (software), after day/night decision
+                    if self.enable_day_night and frame is not None and self.current_mode == "night":
+                        if NIGHT_BRIGHTNESS_ENABLE:
+                            try:
+                                frame = apply_brightness_contrast_gamma(
+                                    frame,
+                                    alpha=NIGHT_BRIGHTNESS_ALPHA,
+                                    beta=NIGHT_BRIGHTNESS_BETA,
+                                    gamma=NIGHT_EXTRA_GAMMA,
+                                )
+                            except Exception:
+                                pass
                     # Add WNCC STEM Club label timing logic (only if enabled for this camera)
                     if self.enable_overlay:
                         current_cycle_time = (

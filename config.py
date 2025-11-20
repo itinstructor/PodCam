@@ -135,3 +135,14 @@ WB_EXCLUDE_BRIGHT = 235  # grayscale above this is ignored
 
 # Persisted calibration file for "neutral-card" lock
 WB_CALIBRATION_FILE = "wb_calibration.json"
+
+# ---------------------- NIGHT BRIGHTNESS BOOST --------------------------- #
+# Apply additional brightness/contrast/gamma only when in night mode
+# This helps visibility under IR illumination or very low light.
+NIGHT_BRIGHTNESS_ENABLE = True
+# Contrast multiplier (1.0 = no change). Try 1.05–1.25.
+NIGHT_BRIGHTNESS_ALPHA = 1.15
+# Brightness offset in 0–255 (0 = no change). Try 8–20.
+NIGHT_BRIGHTNESS_BETA = 12
+# Extra gamma to brighten midtones at night (1.0 = no change). Try 1.1–1.4.
+NIGHT_EXTRA_GAMMA = 1.2
