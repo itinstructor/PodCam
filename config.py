@@ -112,7 +112,8 @@ RGB_CORRECTION_GREEN = 1.0  # Boost green to counter magenta
 RGB_CORRECTION_BLUE = 1.0   # Slightly reduce blue
 
 # Optional: Gamma correction for brightness curve adjustment
-RGB_LED_GAMMA = 1.0  # 1.0 keeps brightness unchanged
+# Increase above 1.0 to brighten midtones (e.g., 1.2–1.4)
+RGB_LED_GAMMA = 1.25
 
 # Software White Balance (in addition to the base multipliers above)
 # Modes: "off" (no auto WB), "auto_grayworld" (estimate per-frame gains)
