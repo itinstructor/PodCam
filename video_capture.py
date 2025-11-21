@@ -1,4 +1,4 @@
-#!/home/pi/FishCam/.venv/bin/python
+#!/home/pi/Code/.venv/bin/python
 """
 Video Recorder
 Simple menu-based program to capture video from the camera
@@ -29,7 +29,9 @@ from config import (
 try:
     from libcamera_capture import LibcameraCapture, detect_csi_cameras, is_libcamera_available
     _LIBCAMERA_OK = True
-except Exception:
+    print("Libcamera/Picamera2 support loaded successfully")
+except Exception as e:
+    print(f"Libcamera/Picamera2 not available: {e}")
     LibcameraCapture = None
     detect_csi_cameras = None
     is_libcamera_available = lambda: False  # type: ignore
@@ -71,13 +73,18 @@ def _open_capture():
     if platform.system().lower() == "linux" and _LIBCAMERA_OK and is_libcamera_available():
         try:
             csi = detect_csi_cameras() if detect_csi_cameras else []
+            print(f"DEBUG: CSI cameras detected: {csi}")
             if csi:
+                print("DEBUG: Attempting to open CSI camera with LibcameraCapture...")
                 cap = LibcameraCapture(0)
                 if cap.isOpened():
+                    print("DEBUG: CSI camera opened successfully")
                     return cap, True
-        except Exception:
-            pass
+                print("DEBUG: CSI camera failed to open")
+        except Exception as e:
+            print(f"DEBUG: CSI camera exception: {e}")
     # Fallback to USB (V4L2 or default on other OS)
+    print("DEBUG: Opening USB camera with V4L2...")
     backend = cv2.CAP_V4L2 if platform.system().lower() == "linux" else 0
     cap = cv2.VideoCapture(0, backend)
     return cap, False

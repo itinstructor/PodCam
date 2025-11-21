@@ -248,19 +248,13 @@ class LibcameraCapture:
 
 def detect_csi_cameras():
     """
-    Detect available CSI cameras.
+    Detect available CSI cameras (excludes USB cameras).
     
     Returns:
         List of detected camera indices
     """
-    # 1) Prefer Picamera2 API (works across Debian/RPi OS without CLI tools)
-    if PICAMERA2_AVAILABLE:
-        try:
-            info = Picamera2.global_camera_info()
-            if isinstance(info, list) and len(info) > 0:
-                return list(range(len(info)))
-        except Exception as e:
-            logger.warning(f"Picamera2 global camera info failed: {e}")
+    # Don't use Picamera2.global_camera_info() as it can list USB cameras too.
+    # Instead, use CLI tools which correctly distinguish CSI from USB.
 
     # 2) Try rpicam-apps (Debian 13 / Raspberry Pi repo)
     if shutil.which('rpicam-hello'):
@@ -273,6 +267,17 @@ def detect_csi_cameras():
             )
             if result.returncode == 0:
                 cameras = []
+                # The USB camera path appears in stderr, not stdout
+                # Check entire output (stdout + stderr) for USB indicators
+                full_output = result.stdout + '\n' + result.stderr
+                full_output_lower = full_output.lower()
+                
+                # If the ONLY camera listed has USB indicators in the full output, skip it
+                if 'usb@' in full_output_lower or 'uvcvideo' in full_output_lower:
+                    logger.info("rpicam-hello detected USB camera only - skipping CSI detection")
+                    return []
+                
+                # Otherwise parse camera indices from stdout
                 for line in result.stdout.split('\n'):
                     line = line.strip()
                     if '[' in line and ']' in line:
@@ -299,6 +304,11 @@ def detect_csi_cameras():
                 cameras = []
                 for line in result.stdout.split('\n'):
                     s = line.strip()
+                    s_lower = s.lower()
+                    # Skip USB cameras
+                    if 'usb@' in s_lower or 'uvcvideo' in s_lower or '/usb/' in s_lower:
+                        logger.debug(f"Filtered out USB camera: {s}")
+                        continue
                     # Parse lines like "0: imx219 ..." or "[0] ..."
                     if s.startswith('[') and ']' in s:
                         try:
@@ -331,7 +341,12 @@ def detect_csi_cameras():
                 cameras = []
                 for line in result.stdout.split('\n'):
                     line = line.strip()
+                    line_lower = line.lower()
                     if '[' in line and ']' in line:
+                        # Filter USB cameras
+                        if 'usb@' in line_lower or 'uvcvideo' in line_lower or '/usb/' in line_lower:
+                            logger.debug(f"Filtered out USB camera: {line}")
+                            continue
                         try:
                             idx_str = line.split('[')[1].split(']')[0]
                             cameras.append(int(idx_str))

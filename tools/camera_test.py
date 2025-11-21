@@ -94,10 +94,15 @@ def list_working_cameras(max_index=10, test_frames=3):
     
     # First check for CSI cameras if libcamera (Picamera2) is available.
     # Do not require legacy demo tools (libcamera-hello); Debian 13 uses rpicam-apps/cam.
+    # CSI detection now filters out USB cameras automatically.
     if LIBCAMERA_AVAILABLE:
         logging.info("Checking for CSI cameras with libcamera...")
         try:
             csi_cameras = detect_csi_cameras()
+            if csi_cameras:
+                logging.info(f"Found {len(csi_cameras)} CSI camera(s): {csi_cameras}")
+            else:
+                logging.info("No CSI cameras detected (USB cameras filtered out)")
         except Exception as e:
             logging.warning(f"CSI camera detection failed: {e}")
             csi_cameras = []
@@ -169,7 +174,10 @@ def print_camera_info(camera_index, camera_type='USB'):
         # Try to set some typical values
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
-        cap.set(cv2.CAP_PROP_FPS, 20)
+        try:
+            cap.set(cv2.CAP_PROP_FPS, 20)
+        except Exception as e:
+            logging.warning(f"Could not set FPS: {e}")
         cap.start()
         
         # Get actual settings

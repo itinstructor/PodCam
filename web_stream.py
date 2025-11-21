@@ -1180,9 +1180,13 @@ def main():
     if LIBCAMERA_AVAILABLE:
         logger.info("Libcamera support available for CSI cameras")
     
-    # Try to detect camera type for camera 0 (Fish Tank)
+    # Force USB mode if KNOWN_CAMERA_INDEX is set (user knows their camera)
     use_libcamera_0 = False
-    if LIBCAMERA_AVAILABLE and is_libcamera_available():
+    if KNOWN_CAMERA_INDEX is not None:
+        logger.info("KNOWN_CAMERA_INDEX is set - using USB/V4L2 mode for camera 0")
+        use_libcamera_0 = False
+    elif LIBCAMERA_AVAILABLE and is_libcamera_available():
+        # Only auto-detect CSI if camera index is not explicitly known
         csi_cameras = detect_csi_cameras()
         if 0 in csi_cameras:
             use_libcamera_0 = True
