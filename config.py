@@ -100,9 +100,9 @@ ENABLE_DAY_NIGHT = True  # Set True to enable
 #   - If switching to day too late → raise DAY_LUMA_THRESHOLD (try 0.70-0.80)
 #   - Keep ~0.10-0.15 gap between thresholds to prevent rapid switching
 NIGHT_LUMA_THRESHOLD = 0.45  # Switch to night mode when brightness drops below this
-DAY_LUMA_THRESHOLD = 0.60    # Switch to day mode when brightness rises above this
+DAY_LUMA_THRESHOLD = 0.65    # Switch to day mode when brightness rises above this
 # How often (seconds) to sample brightness to consider switching
-LUMA_SAMPLE_EVERY_SEC = 30.0  # Check every 30 seconds (faster response than 60s)
+LUMA_SAMPLE_EVERY_SEC = 60.0  # Check every 30 seconds (faster response than 60s)
 
 # ---------------------- RGB LED COLOR CORRECTION -------------------------- #
 # Adjust colors to compensate for RGB LED lighting
