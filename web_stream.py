@@ -372,6 +372,16 @@ class MediaRelay:
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.cap.set(cv2.CAP_PROP_FPS, self.frame_rate)
+        
+        # Lock exposure to prevent LED flicker detection
+        # Disable auto-exposure (0 = manual mode on most cameras)
+        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # 0.25 = manual mode
+        # Set fixed exposure time (negative values or large positive values for manual control)
+        # Typical range: -1 to -13 (powers of 2), or absolute value in some cameras
+        self.cap.set(cv2.CAP_PROP_EXPOSURE, -7)  # Fixed exposure to avoid flicker
+        
+        logger.info(f"[MediaRelay] Set manual exposure to reduce LED flicker")
+        
         return self._check_settings(method_name)
 
     def _check_settings(self, method_name):
