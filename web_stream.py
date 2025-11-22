@@ -372,6 +372,16 @@ class MediaRelay:
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.cap.set(cv2.CAP_PROP_FPS, self.frame_rate)
+        
+        # Disable IR LEDs (BACKLIGHT control on Arducam cameras)
+        # The automatic IR switching was causing visible flickering
+        try:
+            self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)  # 0 = IR LEDs OFF
+            actual_backlight = self.cap.get(cv2.CAP_PROP_BACKLIGHT)
+            logger.info(f"[MediaRelay] IR LEDs disabled (BACKLIGHT={actual_backlight})")
+        except Exception as e:
+            logger.warning(f"[MediaRelay] Could not disable IR LEDs: {e}")
+        
         return self._check_settings(method_name)
 
     def _check_settings(self, method_name):
