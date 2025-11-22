@@ -126,7 +126,8 @@ RGB_LED_GAMMA = 1.5
 
 # Software White Balance (in addition to the base multipliers above)
 # Modes: "off" (no auto WB), "auto_grayworld" (estimate per-frame gains)
-WB_MODE = "auto_grayworld"
+# NOTE: Auto WB disabled due to flickering - use manual RGB multipliers or calibrate with /wb/calibrate
+WB_MODE = "off"
 
 # How quickly to adapt to new lighting (0.0-1.0). Lower = smoother.
 WB_ALPHA = 0.12
