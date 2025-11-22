@@ -145,4 +145,4 @@ NIGHT_BRIGHTNESS_ALPHA = 1.15
 # Brightness offset in 0–255 (0 = no change). Try 8–20.
 NIGHT_BRIGHTNESS_BETA = 12
 # Extra gamma to brighten midtones at night (1.0 = no change). Try 1.1–1.4.
-NIGHT_EXTRA_GAMMA = 1.2
+NIGHT_EXTRA_GAMMA = 1.1
