@@ -378,10 +378,10 @@ class MediaRelay:
         try:
             # Method 1: V4L2 manual exposure mode
             self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # 1 = manual mode (0.25 for some cameras)
-            self.cap.set(cv2.CAP_PROP_EXPOSURE, 156)  # Absolute exposure value (experiment: 100-200)
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, 30)  # Lower exposure value (was 156, now 30)
             
-            # Lock gain
-            self.cap.set(cv2.CAP_PROP_GAIN, 50)  # Fixed gain
+            # Lock gain at lower value
+            self.cap.set(cv2.CAP_PROP_GAIN, 20)  # Lower fixed gain
             
             # Try to disable auto white balance which can also cause flicker
             self.cap.set(cv2.CAP_PROP_AUTO_WB, 0)  # 0 = manual WB
