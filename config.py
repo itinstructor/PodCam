@@ -74,15 +74,15 @@ TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 
 # Fish Tank Camera (Camera 0) Frame Rate Settings
 CAMERA_FRAME_RATE = (
-    20.0  # How many pictures per second we want the fish camera to take
+    10.0  # How many pictures per second we want the camera to take
 )
 
 # Note: Some cameras may ignore frame rate settings and use their own preferred rate.
 # This is normal hardware behavior - the camera will tell us what it's actually using.
 
 # Pod (Camera 0) Resolution
-CAMERA_WIDTH = 1920
-CAMERA_HEIGHT = 1080
+CAMERA_WIDTH = 1024
+CAMERA_HEIGHT = 768
 
 # JPEG compression quality (0-100, higher = better quality but more bandwidth)
 JPEG_QUALITY = 85  # Good balance between quality and bandwidth
