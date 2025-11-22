@@ -394,11 +394,17 @@ class MediaRelay:
         # Disable IR LEDs if configured (BACKLIGHT control on Arducam cameras)
         if CAMERA_DISABLE_IR_LEDS:
             try:
-                self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)  # 0 = IR LEDs OFF
+                # Set backlight compensation to 0 to disable IR LEDs
+                self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)
+                # Verify it was set
                 actual_backlight = self.cap.get(cv2.CAP_PROP_BACKLIGHT)
-                logger.info(f"[MediaRelay] IR LEDs disabled (BACKLIGHT={actual_backlight})")
+                if actual_backlight != 0:
+                    # Try again if it didn't stick
+                    self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)
+                    actual_backlight = self.cap.get(cv2.CAP_PROP_BACKLIGHT)
+                logger.info(f"[MediaRelay] IR LED control: BACKLIGHT={actual_backlight} (0=OFF, >0=ON)")
             except Exception as e:
-                logger.warning(f"[MediaRelay] Could not disable IR LEDs: {e}")
+                logger.warning(f"[MediaRelay] Could not control IR LEDs: {e}")
         
         return self._check_settings(method_name)
 
