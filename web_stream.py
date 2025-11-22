@@ -231,6 +231,7 @@ class MediaRelay:
         self.current_mode = "day"  # default
         self._last_luma_check = 0.0
         self._mode_switch_count = 0  # Require multiple samples before switching
+        self._smoothed_luma = None  # Exponential moving average of brightness
 
         # Software white balance state
         self.wb_mode = WB_MODE
@@ -602,7 +603,16 @@ class MediaRelay:
                             # Compute normalized luma from the UNCORRECTED frame to avoid bias
                             src_for_luma = self._last_uncorrected if self._last_uncorrected is not None else frame
                             gray = cv2.cvtColor(src_for_luma, cv2.COLOR_BGR2GRAY)
-                            mean_luma = float(gray.mean()) / 255.0
+                            raw_luma = float(gray.mean()) / 255.0
+                            
+                            # Apply exponential moving average to smooth out auto-exposure variations
+                            # Alpha = 0.3 means 30% new value, 70% old value (heavy smoothing)
+                            if self._smoothed_luma is None:
+                                self._smoothed_luma = raw_luma
+                            else:
+                                self._smoothed_luma = 0.3 * raw_luma + 0.7 * self._smoothed_luma
+                            
+                            mean_luma = self._smoothed_luma
                             
                             # Determine if we should switch modes (with damping)
                             should_switch_to_night = self.current_mode == "day" and mean_luma < NIGHT_LUMA_THRESHOLD
@@ -621,7 +631,7 @@ class MediaRelay:
                                                 self.cap.set_night_mode()
                                             else:
                                                 self.cap.set_day_mode()
-                                        logger.info(f"[MediaRelay] Day/Night switched to {new_mode} (mean luma={mean_luma:.3f})")
+                                        logger.info(f"[MediaRelay] Day/Night switched to {new_mode} (smoothed luma={mean_luma:.3f}, raw={raw_luma:.3f})")
                                     except Exception:
                                         pass
                             else:

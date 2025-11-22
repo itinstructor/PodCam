@@ -93,7 +93,7 @@ KNOWN_CAMERA_INDEX = 0
 
 # ---------------------- DAY/NIGHT CONFIG (software only) ----------------- #
 # Enable automatic day/night switching based on frame brightness
-ENABLE_DAY_NIGHT = False  # Set True to enable
+ENABLE_DAY_NIGHT = True  # Set True to enable
 # Hysteresis thresholds on normalized luma (0.0-1.0). Use NIGHT < DAY.
 # Lower values = darker threshold. Tune based on your lighting:
 #   - If showing NIGHT during daylight → lower DAY_LUMA_THRESHOLD (try 0.30-0.40)
