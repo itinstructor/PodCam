@@ -606,6 +606,13 @@ class MediaRelay:
                 # Try to read one frame from the camera
                 ret, frame = self.cap.read()
                 if ret:
+                    # Continuously force IR LEDs off (camera keeps resetting this)
+                    if CAMERA_DISABLE_IR_LEDS:
+                        try:
+                            self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)
+                        except Exception:
+                            pass
+                    
                     # Save an uncorrected copy for WB calibration before any processing
                     try:
                         self._last_uncorrected = frame.copy()
