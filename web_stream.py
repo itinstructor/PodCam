@@ -230,6 +230,7 @@ class MediaRelay:
         self.enable_day_night = ENABLE_DAY_NIGHT
         self.current_mode = "day"  # default
         self._last_luma_check = 0.0
+        self._mode_switch_count = 0  # Require multiple samples before switching
 
         # Software white balance state
         self.wb_mode = WB_MODE
@@ -602,22 +603,30 @@ class MediaRelay:
                             src_for_luma = self._last_uncorrected if self._last_uncorrected is not None else frame
                             gray = cv2.cvtColor(src_for_luma, cv2.COLOR_BGR2GRAY)
                             mean_luma = float(gray.mean()) / 255.0
-                            new_mode = self.current_mode
-                            if self.current_mode == "day" and mean_luma < NIGHT_LUMA_THRESHOLD:
-                                new_mode = "night"
-                            elif self.current_mode == "night" and mean_luma > DAY_LUMA_THRESHOLD:
-                                new_mode = "day"
-                            if new_mode != self.current_mode:
-                                self.current_mode = new_mode
-                                try:
-                                    if hasattr(self.cap, "set_day_mode") and hasattr(self.cap, "set_night_mode"):
-                                        if new_mode == "night":
-                                            self.cap.set_night_mode()
-                                        else:
-                                            self.cap.set_day_mode()
-                                    logger.info(f"[MediaRelay] Day/Night switched to {new_mode} (mean luma={mean_luma:.3f})")
-                                except Exception:
-                                    pass
+                            
+                            # Determine if we should switch modes (with damping)
+                            should_switch_to_night = self.current_mode == "day" and mean_luma < NIGHT_LUMA_THRESHOLD
+                            should_switch_to_day = self.current_mode == "night" and mean_luma > DAY_LUMA_THRESHOLD
+                            
+                            if should_switch_to_night or should_switch_to_day:
+                                self._mode_switch_count += 1
+                                # Require 2 consecutive samples in target range before switching
+                                if self._mode_switch_count >= 2:
+                                    new_mode = "night" if should_switch_to_night else "day"
+                                    self.current_mode = new_mode
+                                    self._mode_switch_count = 0
+                                    try:
+                                        if hasattr(self.cap, "set_day_mode") and hasattr(self.cap, "set_night_mode"):
+                                            if new_mode == "night":
+                                                self.cap.set_night_mode()
+                                            else:
+                                                self.cap.set_day_mode()
+                                        logger.info(f"[MediaRelay] Day/Night switched to {new_mode} (mean luma={mean_luma:.3f})")
+                                    except Exception:
+                                        pass
+                            else:
+                                # Reset counter if brightness is stable in current mode
+                                self._mode_switch_count = 0
                     # Night-only brightness boost (software), after day/night decision
                     if self.enable_day_night and frame is not None and self.current_mode == "night":
                         if NIGHT_BRIGHTNESS_ENABLE:
