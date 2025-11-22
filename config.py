@@ -96,14 +96,15 @@ KNOWN_CAMERA_INDEX = 0
 ENABLE_DAY_NIGHT = True  # Set True to enable
 # Hysteresis thresholds on normalized luma (0.0-1.0). Use NIGHT < DAY.
 # Lower values = darker threshold. Tune based on your lighting:
-#   - If switching to night too late → lower NIGHT_LUMA_THRESHOLD (try 0.35-0.45)
-#   - If switching to day too late → raise DAY_LUMA_THRESHOLD (try 0.55-0.65)
+#   - If showing NIGHT during daylight → lower DAY_LUMA_THRESHOLD (try 0.30-0.40)
+#   - If showing DAY at night → raise NIGHT_LUMA_THRESHOLD (try 0.25-0.35)
 #   - Keep ~0.10-0.15 gap between thresholds to prevent rapid switching
-#   - If flickering during day → raise both thresholds and increase sample interval
-NIGHT_LUMA_THRESHOLD = 0.35  # Switch to night mode when brightness drops below this
-DAY_LUMA_THRESHOLD = 0.50    # Switch to day mode when brightness rises above this
+#   - If flickering → increase sample interval to 300+ seconds
+# NOTE: Luma is measured from UNCORRECTED frame (before RGB correction/WB)
+NIGHT_LUMA_THRESHOLD = 0.20  # Switch to night mode when brightness drops below this
+DAY_LUMA_THRESHOLD = 0.35    # Switch to day mode when brightness rises above this
 # How often (seconds) to sample brightness to consider switching
-LUMA_SAMPLE_EVERY_SEC = 180.0  # Check every 2 minutes to prevent flickering
+LUMA_SAMPLE_EVERY_SEC = 300.0  # Check every 5 minutes for maximum stability
 
 # ---------------------- RGB LED COLOR CORRECTION -------------------------- #
 # Adjust colors to compensate for RGB LED lighting
