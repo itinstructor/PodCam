@@ -373,14 +373,25 @@ class MediaRelay:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.cap.set(cv2.CAP_PROP_FPS, self.frame_rate)
         
-        # Lock exposure to prevent LED flicker detection
-        # Disable auto-exposure (0 = manual mode on most cameras)
-        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # 0.25 = manual mode
-        # Set fixed exposure time (negative values or large positive values for manual control)
-        # Typical range: -1 to -13 (powers of 2), or absolute value in some cameras
-        self.cap.set(cv2.CAP_PROP_EXPOSURE, -7)  # Fixed exposure to avoid flicker
-        
-        logger.info(f"[MediaRelay] Set manual exposure to reduce LED flicker")
+        # Lock exposure and gain to prevent LED flicker detection
+        # Try multiple methods as different cameras use different APIs
+        try:
+            # Method 1: V4L2 manual exposure mode
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # 1 = manual mode (0.25 for some cameras)
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, 156)  # Absolute exposure value (experiment: 100-200)
+            
+            # Lock gain
+            self.cap.set(cv2.CAP_PROP_GAIN, 50)  # Fixed gain
+            
+            # Try to disable auto white balance which can also cause flicker
+            self.cap.set(cv2.CAP_PROP_AUTO_WB, 0)  # 0 = manual WB
+            
+            actual_auto_exp = self.cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)
+            actual_exp = self.cap.get(cv2.CAP_PROP_EXPOSURE)
+            actual_gain = self.cap.get(cv2.CAP_PROP_GAIN)
+            logger.info(f"[MediaRelay] Exposure lock: auto_exp={actual_auto_exp}, exposure={actual_exp}, gain={actual_gain}")
+        except Exception as e:
+            logger.warning(f"[MediaRelay] Could not set manual exposure: {e}")
         
         return self._check_settings(method_name)
 
