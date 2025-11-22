@@ -61,6 +61,9 @@ from config import (
     CAMERA_WIDTH,
     CAMERA_HEIGHT,
     CAMERA_FRAME_RATE,
+    CAMERA_AUTO_EXPOSURE,
+    CAMERA_EXPOSURE_VALUE,
+    CAMERA_DISABLE_IR_LEDS,
     JPEG_QUALITY,
     KNOWN_CAMERA_INDEX,
     # Day/Night config (software only)
@@ -373,14 +376,29 @@ class MediaRelay:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.cap.set(cv2.CAP_PROP_FPS, self.frame_rate)
         
-        # Disable IR LEDs (BACKLIGHT control on Arducam cameras)
-        # The automatic IR switching was causing visible flickering
+        # Apply exposure settings from config
         try:
-            self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)  # 0 = IR LEDs OFF
-            actual_backlight = self.cap.get(cv2.CAP_PROP_BACKLIGHT)
-            logger.info(f"[MediaRelay] IR LEDs disabled (BACKLIGHT={actual_backlight})")
+            if CAMERA_AUTO_EXPOSURE:
+                # Enable auto-exposure (3 = auto mode)
+                self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)
+                logger.info(f"[MediaRelay] Auto-exposure enabled")
+            else:
+                # Manual exposure mode (1 = manual)
+                self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
+                self.cap.set(cv2.CAP_PROP_EXPOSURE, CAMERA_EXPOSURE_VALUE)
+                actual_exp = self.cap.get(cv2.CAP_PROP_EXPOSURE)
+                logger.info(f"[MediaRelay] Manual exposure set to {actual_exp}")
         except Exception as e:
-            logger.warning(f"[MediaRelay] Could not disable IR LEDs: {e}")
+            logger.warning(f"[MediaRelay] Could not set exposure: {e}")
+        
+        # Disable IR LEDs if configured (BACKLIGHT control on Arducam cameras)
+        if CAMERA_DISABLE_IR_LEDS:
+            try:
+                self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)  # 0 = IR LEDs OFF
+                actual_backlight = self.cap.get(cv2.CAP_PROP_BACKLIGHT)
+                logger.info(f"[MediaRelay] IR LEDs disabled (BACKLIGHT={actual_backlight})")
+            except Exception as e:
+                logger.warning(f"[MediaRelay] Could not disable IR LEDs: {e}")
         
         return self._check_settings(method_name)
 

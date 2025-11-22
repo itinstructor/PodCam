@@ -68,6 +68,12 @@ LABEL_TRANSPARENCY = (
 TEXT_TRANSPARENCY = 0.9  # Text transparency for overlays (0.0 = fully transparent, 1.0 = fully opaque)
 TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 
+# ---------------------- CAMERA EXPOSURE CONTROL ----------------------- #
+# Control camera exposure and IR LED behavior
+CAMERA_AUTO_EXPOSURE = True  # True = auto exposure, False = manual
+CAMERA_EXPOSURE_VALUE = 150  # Manual exposure value (used if AUTO_EXPOSURE=False, typical: 50-300)
+CAMERA_DISABLE_IR_LEDS = True  # Disable IR LEDs to prevent flickering (BACKLIGHT control)
+
 # ------------------------ WEBSTREAM CONFIGURATION ------------------------- #
 # These constants (values that don't change) control how the camera behaves.
 # You can change these to adjust the video quality and frame rate.
