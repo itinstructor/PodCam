@@ -372,22 +372,6 @@ class MediaRelay:
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.cap.set(cv2.CAP_PROP_FPS, self.frame_rate)
-        
-        # Re-enable auto exposure for proper brightness
-        # LED flicker cannot be fully eliminated in software with flickering LED drivers
-        try:
-            # Enable auto-exposure (3 = auto mode for most V4L2 cameras)
-            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)  # 3 = auto mode
-            
-            # Disable auto white balance to reduce one source of variation
-            self.cap.set(cv2.CAP_PROP_AUTO_WB, 0)  # 0 = manual WB
-            
-            actual_auto_exp = self.cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)
-            actual_exp = self.cap.get(cv2.CAP_PROP_EXPOSURE)
-            logger.info(f"[MediaRelay] Camera settings: auto_exp={actual_auto_exp}, exposure={actual_exp}")
-        except Exception as e:
-            logger.warning(f"[MediaRelay] Could not set camera properties: {e}")
-        
         return self._check_settings(method_name)
 
     def _check_settings(self, method_name):
