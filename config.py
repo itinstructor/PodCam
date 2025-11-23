@@ -109,9 +109,9 @@ ENABLE_DAY_NIGHT = True  # Set True to enable day/night label display
 #   - If flickering → increase sample interval to 300+ seconds
 # NOTE: Luma is measured from UNCORRECTED frame (before RGB correction/WB)
 NIGHT_LUMA_THRESHOLD = (
-    0.22  # Switch to night mode when brightness drops below this
+    0.25  # Switch to night mode when brightness drops below this (raised for IR illumination)
 )
-DAY_LUMA_THRESHOLD = 0.28  # Switch to day mode when brightness rises above this
+DAY_LUMA_THRESHOLD = 0.28  # Switch to day mode when brightness rises above this (lowered for IR illumination)
 # How often (seconds) to sample brightness to consider switching
 LUMA_SAMPLE_EVERY_SEC = 420.0  # Check every 7 minutes for maximum stability
 
