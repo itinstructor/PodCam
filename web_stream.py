@@ -63,7 +63,6 @@ from config import (
     CAMERA_FRAME_RATE,
     CAMERA_AUTO_EXPOSURE,
     CAMERA_EXPOSURE_VALUE,
-    CAMERA_DISABLE_IR_LEDS,
     JPEG_QUALITY,
     KNOWN_CAMERA_INDEX,
     # Day/Night config (software only)
@@ -391,20 +390,7 @@ class MediaRelay:
         except Exception as e:
             logger.warning(f"[MediaRelay] Could not set exposure: {e}")
         
-        # Disable IR LEDs if configured (BACKLIGHT control on Arducam cameras)
-        if CAMERA_DISABLE_IR_LEDS:
-            try:
-                # Set backlight compensation to 0 to disable IR LEDs
-                self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)
-                # Verify it was set
-                actual_backlight = self.cap.get(cv2.CAP_PROP_BACKLIGHT)
-                if actual_backlight != 0:
-                    # Try again if it didn't stick
-                    self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)
-                    actual_backlight = self.cap.get(cv2.CAP_PROP_BACKLIGHT)
-                logger.info(f"[MediaRelay] IR LED control: BACKLIGHT={actual_backlight} (0=OFF, >0=ON)")
-            except Exception as e:
-                logger.warning(f"[MediaRelay] Could not control IR LEDs: {e}")
+        # (IR LED control removed - camera-specific; handled outside this script)
         
         return self._check_settings(method_name)
 
@@ -606,12 +592,7 @@ class MediaRelay:
                 # Try to read one frame from the camera
                 ret, frame = self.cap.read()
                 if ret:
-                    # Continuously force IR LEDs off (camera keeps resetting this)
-                    if CAMERA_DISABLE_IR_LEDS:
-                        try:
-                            self.cap.set(cv2.CAP_PROP_BACKLIGHT, 0)
-                        except Exception:
-                            pass
+                    # IR LED control removed; no per-frame forcing
                     
                     # Save an uncorrected copy for WB calibration before any processing
                     try:

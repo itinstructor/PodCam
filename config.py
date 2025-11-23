@@ -71,8 +71,9 @@ TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 # ---------------------- CAMERA EXPOSURE CONTROL ----------------------- #
 # Control camera exposure and IR LED behavior
 CAMERA_AUTO_EXPOSURE = True  # True = auto exposure, False = manual
-CAMERA_EXPOSURE_VALUE = 25  # Manual exposure value (used if AUTO_EXPOSURE=False, typical: 50-300)
-# CAMERA_DISABLE_IR_LEDS = True  # Disable IR LEDs to prevent flickering (BACKLIGHT control)
+CAMERA_EXPOSURE_VALUE = (
+    25  # Manual exposure value (used if AUTO_EXPOSURE=False, typical: 50-300)
+)
 
 # ------------------------ WEBSTREAM CONFIGURATION ------------------------- #
 # These constants (values that don't change) control how the camera behaves.
@@ -99,7 +100,6 @@ KNOWN_CAMERA_INDEX = 0
 
 # ---------------------- DAY/NIGHT CONFIG (software only) ----------------- #
 # Enable automatic day/night switching based on frame brightness
-# NOTE: IR LEDs now disabled, so day/night label shows current mode (always DAY with LEDs off)
 ENABLE_DAY_NIGHT = True  # Set True to enable day/night label display
 # Hysteresis thresholds on normalized luma (0.0-1.0). Use NIGHT < DAY.
 # Lower values = darker threshold. Tune based on your lighting:
@@ -108,8 +108,10 @@ ENABLE_DAY_NIGHT = True  # Set True to enable day/night label display
 #   - Keep ~0.10-0.15 gap between thresholds to prevent rapid switching
 #   - If flickering → increase sample interval to 300+ seconds
 # NOTE: Luma is measured from UNCORRECTED frame (before RGB correction/WB)
-NIGHT_LUMA_THRESHOLD = 0.18  # Switch to night mode when brightness drops below this
-DAY_LUMA_THRESHOLD = 0.30    # Switch to day mode when brightness rises above this
+NIGHT_LUMA_THRESHOLD = (
+    0.18  # Switch to night mode when brightness drops below this
+)
+DAY_LUMA_THRESHOLD = 0.30  # Switch to day mode when brightness rises above this
 # How often (seconds) to sample brightness to consider switching
 LUMA_SAMPLE_EVERY_SEC = 420.0  # Check every 7 minutes for maximum stability
 
@@ -120,9 +122,9 @@ ENABLE_RGB_LED_CORRECTION = True  # Apply correction to live stream
 # RGB multipliers for white balance adjustment (1.0 = no change)
 # Magenta cast = too little green vs red+blue. Boost green and slightly
 # reduce red/blue until soil looks natural.
-RGB_CORRECTION_RED = 1.0   # Slightly reduce red
+RGB_CORRECTION_RED = 1.0  # Slightly reduce red
 RGB_CORRECTION_GREEN = 1.0  # Boost green to counter magenta
-RGB_CORRECTION_BLUE = 1.0   # Slightly reduce blue
+RGB_CORRECTION_BLUE = 1.0  # Slightly reduce blue
 
 # Optional: Gamma correction for brightness curve adjustment
 # Increase above 1.0 to brighten midtones (e.g., 1.2–1.4)
@@ -144,7 +146,7 @@ WB_GAIN_MIN = 0.5
 WB_GAIN_MAX = 2.0
 
 # Ignore very dark/bright pixels when computing gains to reduce bias
-WB_EXCLUDE_DARK = 25   # grayscale below this (0-255) is ignored
+WB_EXCLUDE_DARK = 25  # grayscale below this (0-255) is ignored
 WB_EXCLUDE_BRIGHT = 235  # grayscale above this is ignored
 
 # Persisted calibration file for "neutral-card" lock
