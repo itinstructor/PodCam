@@ -92,7 +92,8 @@ CAMERA_WIDTH = 1600
 CAMERA_HEIGHT = 1200
 
 # JPEG compression quality (0-100, higher = better quality but more bandwidth)
-JPEG_QUALITY = 85  # Good balance between quality and bandwidth
+# Good balance between quality and bandwidth
+JPEG_QUALITY = 90
 
 # Skip camera detection if you know your camera index (faster startup)
 # Set to 0, 1, 2, etc. if you know your camera index, or None to auto-detect
