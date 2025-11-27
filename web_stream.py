@@ -387,10 +387,12 @@ class MediaRelay:
                 self.cap.set(cv2.CAP_PROP_EXPOSURE, CAMERA_EXPOSURE_VALUE)
                 actual_exp = self.cap.get(cv2.CAP_PROP_EXPOSURE)
                 logger.info(f"[MediaRelay] Manual exposure set to {actual_exp}")
+            
             # Set anti-banding/power line frequency to 60Hz (2 = 60Hz, 1 = 50Hz, 0 = disabled)
             if hasattr(cv2, 'CAP_PROP_POWERLINE_FREQUENCY'):
                 self.cap.set(cv2.CAP_PROP_POWERLINE_FREQUENCY, 2)
                 logger.info("[MediaRelay] Power line frequency set to 60Hz (anti-banding)")
+        
         except Exception as e:
             logger.warning(f"[MediaRelay] Could not set exposure or anti-banding: {e}")
         # (IR LED control removed - camera-specific; handled outside this script)
