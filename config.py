@@ -72,7 +72,7 @@ TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 # Control camera exposure and IR LED behavior
 CAMERA_AUTO_EXPOSURE = False  # True = auto exposure, False = manual (set to False to stop flicker)
 CAMERA_EXPOSURE_VALUE = (
-    225  # Manual exposure value for night operation (increase if too dark: 100-300)
+    30  # Manual exposure value for night operation (increase if too dark: 100-300)
 )
 
 # ------------------------ WEBSTREAM CONFIGURATION ------------------------- #
