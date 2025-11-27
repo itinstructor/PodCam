@@ -70,20 +70,19 @@ TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 
 # ---------------------- CAMERA EXPOSURE CONTROL ----------------------- #
 # Control camera exposure and IR LED behavior
-CAMERA_AUTO_EXPOSURE = False  # True = auto exposure, False = manual (set to False to stop flicker)
-# 16, 33, 50, or 66 (for 60Hz) 
-CAMERA_EXPOSURE_VALUE = (
-    66  # Manual exposure value for night operation (increase if too dark: 100-300)
+CAMERA_AUTO_EXPOSURE = (
+    False  # True = auto exposure, False = manual (set to False to stop flicker)
 )
+# 16, 33, 50, or 66 (for 60Hz)
+CAMERA_EXPOSURE_VALUE = 66  # Manual exposure value for night operation (increase if too dark: 100-300)
 
 # ------------------------ WEBSTREAM CONFIGURATION ------------------------- #
 # These constants (values that don't change) control how the camera behaves.
 # You can change these to adjust the video quality and frame rate.
 
-# Fish Tank Camera (Camera 0) Frame Rate Settings
-CAMERA_FRAME_RATE = (
-    10.0  # How many pictures per second we want the camera to take
-)
+# Pod (Camera 0) Frame Rate Settings
+# How many pictures per second we want the camera to take
+CAMERA_FRAME_RATE = 10.0
 
 # Note: Some cameras may ignore frame rate settings and use their own preferred rate.
 # This is normal hardware behavior - the camera will tell us what it's actually using.
@@ -109,9 +108,7 @@ ENABLE_DAY_NIGHT = True  # Set True to enable day/night label display
 #   - Keep ~0.10-0.15 gap between thresholds to prevent rapid switching
 #   - If flickering → increase sample interval to 300+ seconds
 # NOTE: Luma is measured from UNCORRECTED frame (before RGB correction/WB)
-NIGHT_LUMA_THRESHOLD = (
-    0.20  # Switch to night mode when brightness drops below this (raised for IR illumination)
-)
+NIGHT_LUMA_THRESHOLD = 0.20  # Switch to night mode when brightness drops below this (raised for IR illumination)
 DAY_LUMA_THRESHOLD = 0.28  # Switch to day mode when brightness rises above this (lowered for IR illumination)
 # How often (seconds) to sample brightness to consider switching
 LUMA_SAMPLE_EVERY_SEC = 420.0  # Check every 7 minutes for maximum stability
