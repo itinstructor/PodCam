@@ -72,7 +72,7 @@ TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 # Control camera exposure and IR LED behavior
 CAMERA_AUTO_EXPOSURE = False  # True = auto exposure, False = manual (set to False to stop flicker)
 CAMERA_EXPOSURE_VALUE = (
-    20  # Manual exposure value for night operation (increase if too dark: 100-300)
+    225  # Manual exposure value for night operation (increase if too dark: 100-300)
 )
 
 # ------------------------ WEBSTREAM CONFIGURATION ------------------------- #
@@ -109,7 +109,7 @@ ENABLE_DAY_NIGHT = True  # Set True to enable day/night label display
 #   - If flickering → increase sample interval to 300+ seconds
 # NOTE: Luma is measured from UNCORRECTED frame (before RGB correction/WB)
 NIGHT_LUMA_THRESHOLD = (
-    0.25  # Switch to night mode when brightness drops below this (raised for IR illumination)
+    0.20  # Switch to night mode when brightness drops below this (raised for IR illumination)
 )
 DAY_LUMA_THRESHOLD = 0.28  # Switch to day mode when brightness rises above this (lowered for IR illumination)
 # How often (seconds) to sample brightness to consider switching
