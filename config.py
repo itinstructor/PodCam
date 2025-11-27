@@ -74,7 +74,7 @@ TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 CAMERA_AUTO_EXPOSURE = False
 
 # 16, 33, 50, or 66 (for 60Hz)
-CAMERA_EXPOSURE_VALUE = 60  # Manual exposure value for night operation (increase if too dark: 100-300)
+CAMERA_EXPOSURE_VALUE = 66  # Manual exposure value for night operation (increase if too dark: 100-300)
 
 # ------------------------ WEBSTREAM CONFIGURATION ------------------------- #
 # These constants (values that don't change) control how the camera behaves.
@@ -82,7 +82,7 @@ CAMERA_EXPOSURE_VALUE = 60  # Manual exposure value for night operation (increas
 
 # Pod (Camera 0) Frame Rate Settings
 # How many pictures per second we want the camera to take
-CAMERA_FRAME_RATE = 10.0
+CAMERA_FRAME_RATE = 5.0
 
 # Note: Some cameras may ignore frame rate settings and use their own preferred rate.
 # This is normal hardware behavior - the camera will tell us what it's actually using.
