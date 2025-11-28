@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Filename: sensors_ts.py
-Description: Display temperature, pressure, and humidity
-from Bosch bme680 sensor with integrated email notifications
+Description: Display co2, temperature, and humidity
+from SCD41 sensor with integrated email notifications
 !Connect to I2C bus
 Press Ctrl+C to exit
 """
@@ -435,7 +435,7 @@ def main():
                     except Exception:
                         pass
 
-            # Read BME680 sensor data using the abstracted module
+            # Read SCD41 sensor data using the abstracted module
             co2, temp_f, humidity = co2_sensor.read_sensors()
 
             # Read moisture sensor data
@@ -447,7 +447,7 @@ def main():
                 moisture_pct = None
                 moisture_status_last = None
 
-            # Check if BME680 sensor data was retrieved successfully
+            # Check if SCD41 sensor data was retrieved successfully
             if co2 is not None and temp_f is not None and humidity is not None:
 
                 # Log reading with moisture status
@@ -577,8 +577,8 @@ def thingspeak_send(co2, temp, hum, moisture):
     params = {
         "api_key": TS_KEY,
         "field1": co2,
-        "field2": hum,
-        "field3": temp,
+        "field2": temp,
+        "field3": hum,
         "field4": moisture,
     }
 
@@ -587,8 +587,8 @@ def thingspeak_send(co2, temp, hum, moisture):
         logger.debug(
             "ThingSpeak payload -> "
             f"field1(co2)={co2}ppm, "
-            f"field1(humidity)={hum:.1f}%, "
             f"field2(temp)={temp:.1f}°F, "
+            f"field1(humidity)={hum:.1f}%, "
             + (f"field4(moisture)={moisture:.1f}%")
         )
     except Exception:

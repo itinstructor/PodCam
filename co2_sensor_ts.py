@@ -20,7 +20,14 @@ class CO2Sensor:
         print("Serial number:", [hex(i) for i in self.scd4x.serial_number])
         self.scd4x.start_periodic_measurement()
         print("Waiting for first measurement...")
-        time.sleep(5)  # Allow sensor to become ready
+        # Throw away the first 5 readings to get sensor warmed up
+        for _ in range(5):
+            if self.scd4x.data_ready:
+                self.co2 = self.scd4x.CO2
+                self.temp_c = self.scd4x.temperature
+                self.temp_f = self.temp_c * 9.0 / 5.0 + 32.0
+                self.humidity = self.scd4x.relative_humidity
+
 
     def read_sensors(self):
         """Read CO2, temperature (C, F), and humidity from the sensor. Returns tuple or None."""
