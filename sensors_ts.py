@@ -128,12 +128,7 @@ def get_current_sensor_data_for_email(
 
         # Format sensor data
         sensor_data = {
-            "CO2": f"{co2} ppm": (
-                f"{co2} ppm" if co2 is not None else "No data"
-            ),
-            (
-                f"{temp_f:.1f} °F" if temp_f is not None else "No data"
-            ),
+            "CO2": (f"{co2} ppm" if co2 is not None else "No data"),
             "Air Temperature": (
                 f"{temp_f:.1f} °F" if temp_f is not None else "No data"
             ),
@@ -384,7 +379,7 @@ def main():
             # Check for scheduled emails before sensor readings
             if ENABLE_SCHEDULED_EMAILS:
                 # Get current sensor readings for email scheduling
-                current_co2, current_temp_f, current_humidity  = (
+                current_co2, current_temp_f, current_humidity = (
                     sensor.read_sensors()
                 )
                 # Get current moisture reading for email
@@ -440,7 +435,7 @@ def main():
                         pass
 
             # Read BME680 sensor data using the abstracted module
-            co2, temp_f, humidity  = sensor.read_sensors()
+            co2, temp_f, humidity = sensor.read_sensors()
 
             # Read moisture sensor data
             moisture_data = moisture_sensor.read_sensor()
@@ -452,11 +447,7 @@ def main():
                 moisture_status_last = None
 
             # Check if BME680 sensor data was retrieved successfully
-            if (
-                co2 is not None
-                and temp_f is not None
-                and humidity is not None
-            ):
+            if co2 is not None and temp_f is not None and humidity is not None:
 
                 # Log reading with moisture status
                 if moisture_pct is not None:
