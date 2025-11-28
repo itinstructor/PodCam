@@ -9,7 +9,7 @@ import time
 from api_key_ts import THINGSPEAK_API_KEY, THINGSPEAK_URL
 
 
-class Co2SensorReader:
+class CO2Sensor:
     """Reader for SCD4x CO2 sensor via I2C."""
 
     def __init__(self):
@@ -19,19 +19,21 @@ class Co2SensorReader:
         self.scd4x.start_periodic_measurement()
         print("Waiting for first measurement....")
 
-    def read_data(self):
+    def read_sensors(self):
         """Read CO2, temperature (C, F), and humidity from the sensor. Returns tuple or None."""
         if self.scd4x.data_ready:
             self.temp_c = self.scd4x.temperature
             self.temp_f = self.temp_c * 9 / 5 + 32
             self.co2 = self.scd4x.CO2
             self.humidity = self.scd4x.relative_humidity
+        return self.co2, self.temp_f, self.humidity
+
 
     def send_to_thingspeak(self):
         payload = {
             "api_key": THINGSPEAK_API_KEY,
             "field1": self.avg_co2,
-            "field2": self.avg_temp_c,
+            "field2": self.avg_temp_f,
             "field3": self.avg_humidity,
         }
         try:
@@ -45,10 +47,10 @@ class Co2SensorReader:
         readings = []
         readings_needed = avg_window // interval
 
-        data = self.read_data()
+        data = self.read_sensors()
         
         co2, temp_c, temp_f, humidity = data
-        readings.append((co2, temp_c, humidity))
+        readings.append((co2, temp_f, humidity))
         # print(
         #     f"CO2: {co2} ppm, Temp: {temp_c:.1f} C, Humidity: {humidity:.1f}%"
         # )
@@ -56,9 +58,8 @@ class Co2SensorReader:
         if len(readings) >= readings_needed:
             # Compute averages
             self.avg_co2 = sum(r[0] for r in readings) / len(readings)
-            self.avg_temp_c = sum(r[1] for r in readings) / len(readings)
+            self.avg_temp_f = sum(r[1] for r in readings) / len(readings)
             self.avg_humidity = sum(r[2] for r in readings) / len(readings)
-            self.send_to_thingspeak()
             readings.clear()
 
         time.sleep(interval)
@@ -67,7 +68,7 @@ class Co2SensorReader:
 def main():
     print("SCD4x CO2 Sensor Test")
     print("Press Ctrl+C to exit\n")
-    sensor = Co2SensorReader()
+    sensor = CO2Sensor()
     sensor.read_data_averaged(interval=30, avg_window=10 * 60)
 
 

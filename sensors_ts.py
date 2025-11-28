@@ -12,11 +12,13 @@ from time import sleep
 
 import requests
 
-# pip install adafruit-circuitpython-scd4x
-import board
-import adafruit_scd4x
+from co2_sensor_ts import CO2Sensor
 from moisture_sensor_ts import MoistureSensor
 from logging_config import setup_sensor_logger
+
+# Create sensor objects
+co2_sensor = CO2Sensor()
+moisture_sensor = MoistureSensor()
 
 # Import email notification system
 from email_notification import EmailNotifier
@@ -380,7 +382,7 @@ def main():
             if ENABLE_SCHEDULED_EMAILS:
                 # Get current sensor readings for email scheduling
                 current_co2, current_temp_f, current_humidity = (
-                    sensor.read_sensors()
+                    co2_sensor.read_sensors()
                 )
                 # Get current moisture reading for email
                 current_moisture_data = moisture_sensor.read_sensor()
@@ -435,7 +437,7 @@ def main():
                         pass
 
             # Read BME680 sensor data using the abstracted module
-            co2, temp_f, humidity = sensor.read_sensors()
+            co2, temp_f, humidity = co2_sensor.read_sensors()
 
             # Read moisture sensor data
             moisture_data = moisture_sensor.read_sensor()
