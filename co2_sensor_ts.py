@@ -22,9 +22,10 @@ class CO2Sensor:
     def read_sensors(self):
         """Read CO2, temperature (C, F), and humidity from the sensor. Returns tuple or None."""
         if self.scd4x.data_ready:
+            self.co2 = self.scd4x.co2
             self.temp_c = self.scd4x.temperature
             self.temp_f = self.temp_c * 9 / 5 + 32
-            self.co2 = self.scd4x.CO2
+            
             self.humidity = self.scd4x.relative_humidity
         return self.co2, self.temp_f, self.humidity
 
