@@ -36,6 +36,16 @@ def main():
     print("SCD4x CO2 Sensor Test")
     print("Press Ctrl+C to exit\n")
     sensor = CO2Sensor()
+    try:
+        while True:
+            time.sleep(1)
+            co2, temp_f, humidity = sensor.read_sensors()
+            if co2 is not None:
+                print(f"CO2: {co2} ppm, Temp: {temp_f:.1f} F, Humidity: {humidity:.1f}%")
+            else:
+                print("Waiting for sensor data...")
+    except KeyboardInterrupt:
+        print("\nExiting on user request.")
 
 
 if __name__ == "__main__":

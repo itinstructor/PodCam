@@ -30,7 +30,6 @@ from config import (
     READINGS_PER_CYCLE,
     ENABLE_SCHEDULED_EMAILS,
     DAILY_EMAIL_TIME,
-    DEFAULT_RECIPIENT_EMAILS,
     SEND_EMAIL_ON_STARTUP,
 )
 
@@ -545,7 +544,7 @@ def main():
                 # Sleep for 30 seconds before next reading
                 sleep(SENSOR_READ_INTERVAL)
             else:
-                logger.warning("Failed to get BME680 sensor data")
+                logger.warning("Failed to get SCD41 sensor data")
                 sleep(5)  # Short sleep before retrying
 
     except KeyboardInterrupt:
