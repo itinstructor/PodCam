@@ -118,12 +118,12 @@ ENABLE_DAY_NIGHT = True
 #   - If flickering → increase sample interval to 300+ seconds
 # NOTE: Luma is measured from UNCORRECTED frame (before RGB correction/WB)
 # Switch to night mode when brightness drops below this (raised for IR illumination)
-NIGHT_LUMA_THRESHOLD = 0.40
+NIGHT_LUMA_THRESHOLD = 0.25
 # Switch to day mode when brightness rises above this (lowered for IR illumination)
 DAY_LUMA_THRESHOLD = 0.18
 # How often in (seconds) to sample brightness to consider switching
 # Check more often for maximum stability
-LUMA_SAMPLE_EVERY_SEC = 30.0
+LUMA_SAMPLE_EVERY_SEC = 15.0
 
 # ---------------------- RGB LED COLOR CORRECTION -------------------------- #
 # Adjust colors to compensate for RGB LED lighting
