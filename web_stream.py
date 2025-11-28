@@ -63,6 +63,8 @@ from config import (
     CAMERA_FRAME_RATE,
     CAMERA_AUTO_EXPOSURE,
     CAMERA_EXPOSURE_VALUE,
+    CAMERA_DAY_EXPOSURE_VALUE,
+    CAMERA_NIGHT_EXPOSURE_VALUE,
     JPEG_QUALITY,
     KNOWN_CAMERA_INDEX,
     # Day/Night config (software only)
@@ -231,6 +233,7 @@ class MediaRelay:
         # Day/Night state
         self.enable_day_night = ENABLE_DAY_NIGHT
         self.current_mode = "day"  # default
+        self._last_exposure_mode = None  # Track last exposure mode
         self._last_luma_check = 0.0
         self._mode_switch_count = 0  # Require multiple samples before switching
         self._smoothed_luma = None  # Exponential moving average of brightness
@@ -652,14 +655,22 @@ class MediaRelay:
                                     self.current_mode = new_mode
                                     self._mode_switch_count = 0
                                     try:
+                                        # Set camera exposure automatically for day/night
+                                        if not CAMERA_AUTO_EXPOSURE and self.cap is not None:
+                                            if new_mode == "night":
+                                                self.cap.set(cv2.CAP_PROP_EXPOSURE, CAMERA_NIGHT_EXPOSURE_VALUE)
+                                                logger.info(f"[MediaRelay] Exposure set to NIGHT value: {CAMERA_NIGHT_EXPOSURE_VALUE}")
+                                            else:
+                                                self.cap.set(cv2.CAP_PROP_EXPOSURE, CAMERA_DAY_EXPOSURE_VALUE)
+                                                logger.info(f"[MediaRelay] Exposure set to DAY value: {CAMERA_DAY_EXPOSURE_VALUE}")
                                         if hasattr(self.cap, "set_day_mode") and hasattr(self.cap, "set_night_mode"):
                                             if new_mode == "night":
                                                 self.cap.set_night_mode()
                                             else:
                                                 self.cap.set_day_mode()
                                         logger.info(f"[MediaRelay] Day/Night switched to {new_mode} (smoothed luma={mean_luma:.3f}, raw={raw_luma:.3f})")
-                                    except Exception:
-                                        pass
+                                    except Exception as e:
+                                        logger.warning(f"[MediaRelay] Exposure switch error: {e}")
                             else:
                                 # Reset counter if brightness is stable in current mode
                                 self._mode_switch_count = 0
