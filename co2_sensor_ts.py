@@ -20,6 +20,7 @@ class CO2Sensor:
         print("Serial number:", [hex(i) for i in self.scd4x.serial_number])
         self.scd4x.start_periodic_measurement()
         print("Waiting for first measurement...")
+        time.sleep(1)
         # Throw away the first 5 readings to get sensor warmed up
         for _ in range(5):
             if self.scd4x.data_ready:
