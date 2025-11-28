@@ -17,6 +17,7 @@ class CO2Sensor:
         self.humidity = None
         self.i2c = board.I2C()
         self.scd4x = adafruit_scd4x.SCD4X(self.i2c)
+        self.scd4x.start_periodic_measurement()
 
     def read_sensors(self):
         """Read CO2, temperature (C, F), and humidity from the sensor. Returns tuple or None."""
