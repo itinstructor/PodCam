@@ -75,10 +75,10 @@ CAMERA_AUTO_EXPOSURE = False
 
 # Exposure values for manual mode
 # Use lower value for day, higher for night (IR)
-CAMERA_DAY_EXPOSURE_VALUE = 50  # Example: 16 for bright daylight
-CAMERA_NIGHT_EXPOSURE_VALUE = (
-    30  # Example: 33 for IR night (increase if too dark: 100-300)
-)
+# Example: 16 for bright daylight
+CAMERA_DAY_EXPOSURE_VALUE = 40
+# Example: 33 for IR night (increase if too dark: 100-300)
+CAMERA_NIGHT_EXPOSURE_VALUE = 30
 
 # For backward compatibility, you may keep this (used if not switching dynamically)
 CAMERA_EXPOSURE_VALUE = CAMERA_NIGHT_EXPOSURE_VALUE
@@ -108,8 +108,8 @@ KNOWN_CAMERA_INDEX = 0
 
 # ---------------------- DAY/NIGHT CONFIG (software only) ----------------- #
 # Enable automatic day/night switching based on frame brightness
- # Set True to enable day/night label display
-ENABLE_DAY_NIGHT = True 
+# Set True to enable day/night label display
+ENABLE_DAY_NIGHT = True
 # Hysteresis thresholds on normalized luma (0.0-1.0). Use NIGHT < DAY.
 # Lower values = darker threshold. Tune based on your lighting:
 #   - If showing NIGHT during daylight → lower DAY_LUMA_THRESHOLD (try 0.30-0.40)
