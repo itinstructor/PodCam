@@ -75,7 +75,7 @@ CAMERA_AUTO_EXPOSURE = False
 
 # Exposure values for manual mode
 # Use lower value for day, higher for night (IR)
-CAMERA_DAY_EXPOSURE_VALUE = 66  # Example: 16 for bright daylight
+CAMERA_DAY_EXPOSURE_VALUE = 50  # Example: 16 for bright daylight
 CAMERA_NIGHT_EXPOSURE_VALUE = (
     30  # Example: 33 for IR night (increase if too dark: 100-300)
 )
