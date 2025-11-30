@@ -31,7 +31,7 @@ class CO2Sensor:
             self.temp_c += TEMPERATURE_OFFSET
             self.temp_f = self.temp_c * 9 / 5 + 32
             self.humidity = self.scd4x.relative_humidity
-        return self.co2, self.temp_f, self.humidity
+        return self.co2, self.temp_c, self.humidity
 
 
 def main():
@@ -41,10 +41,10 @@ def main():
     try:
         while True:
             time.sleep(2)
-            co2, temp_f, humidity = sensor.read_sensors()
+            co2, temp_c, humidity = sensor.read_sensors()
             if co2 is not None:
                 print(
-                    f"CO2: {co2} ppm, Temp: {temp_f:.1f} F, Humidity: {humidity:.1f}%"
+                    f"CO2: {co2} ppm, Temp: {temp_c:.1f} C, Humidity: {humidity:.1f}%"
                 )
             else:
                 print("Waiting for sensor data...")

@@ -111,14 +111,14 @@ def calculate_trimmed_mean(readings, trim_percent=0.1):
 
 # ---------------- GET CURRENT SENSOR DATA FOR EMAIL ----------------------- #
 def get_current_sensor_data_for_email(
-    co2, temp_f, humidity, moisture_pct=None, moisture_status=None
+    co2, temp_c, humidity, moisture_pct=None, moisture_status=None
 ):
     """
     Format current sensor readings for email reports.
 
     Args:
         cco2: CO2 concentration in ppm
-        temp_f: Air temperature in Fahrenheit
+        temp_c: Air temperature in Celsius
         humidity: Humidity percentage
 
     Returns:
@@ -131,7 +131,7 @@ def get_current_sensor_data_for_email(
         sensor_data = {
             "CO2": (f"{co2} ppm" if co2 is not None else "No data"),
             "Air Temperature": (
-                f"{temp_f:.1f} °F" if temp_f is not None else "No data"
+                f"{temp_c:.1f} °C" if temp_c is not None else "No data"
             ),
             "Humidity": (
                 f"{humidity:.1f}%" if humidity is not None else "No data"
@@ -309,7 +309,7 @@ def get_next_daily_email_time():
 
 def send_daily_summary_email(
     co2,
-    temp_f,
+    temp_c,
     humidity,
     moisture_pct=None,
     moisture_status=None,
@@ -322,7 +322,7 @@ def send_daily_summary_email(
 
         sensor_data, system_status = get_current_sensor_data_for_email(
             co2,
-            temp_f,
+            temp_c,
             humidity,
             moisture_pct,
             moisture_status,
@@ -436,7 +436,7 @@ def main():
                         pass
 
             # Read SCD41 sensor data using the abstracted module
-            co2, temp_f, humidity = co2_sensor.read_sensors()
+            co2, temp_c, humidity = co2_sensor.read_sensors()
 
             # Read moisture sensor data
             moisture_data = moisture_sensor.read_sensor()
@@ -448,21 +448,21 @@ def main():
                 moisture_status_last = None
 
             # Check if SCD41 sensor data was retrieved successfully
-            if co2 is not None and temp_f is not None and humidity is not None:
+            if co2 is not None and temp_c is not None and humidity is not None:
 
                 # Log reading with moisture status
                 if moisture_pct is not None:
                     logger.info(
-                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {co2:.0f} ppm | {temp_f:.1f} °F | {humidity:.1f}% | Moisture: {moisture_pct:.1f}% ({moisture_status_last})"
+                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {co2:.0f} ppm | {temp_c:.1f} °F | {humidity:.1f}% | Moisture: {moisture_pct:.1f}% ({moisture_status_last})"
                     )
                 else:
                     logger.info(
-                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {co2:.0f} ppm | {temp_f:.1f} °F | {humidity:.1f}% | Moisture: No data"
+                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {co2:.0f} ppm | {temp_c:.1f} °F | {humidity:.1f}% | Moisture: No data"
                     )
 
                 # Add readings to lists for averaging
                 co2_readings.append(co2)
-                temp_readings.append(temp_f)
+                temp_readings.append(temp_c)
                 humidity_readings.append(humidity)
                 if moisture_pct is not None:
                     moisture_readings.append(moisture_pct)
@@ -472,7 +472,7 @@ def main():
                     logger.info("Sending initial reading to ThingSpeak")
                     thingspeak_send(
                         co2,
-                        temp_f,
+                        temp_c,
                         humidity,
                         moisture_pct,
                     )
@@ -484,7 +484,7 @@ def main():
                             sensor_data, system_status = (
                                 get_current_sensor_data_for_email(
                                     co2,
-                                    temp_f,
+                                    temp_c,
                                     humidity,
                                     moisture_pct,
                                     moisture_status_last,
