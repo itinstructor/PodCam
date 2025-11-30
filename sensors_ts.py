@@ -111,7 +111,7 @@ def calculate_trimmed_mean(readings, trim_percent=0.1):
 
 # ---------------- GET CURRENT SENSOR DATA FOR EMAIL ----------------------- #
 def get_current_sensor_data_for_email(
-    co2, temp_c, humidity, moisture_pct=None, moisture_status=None
+    co2, temp_c, humidity, moisture_pct=None, moisture_status=None, temp_f=None
 ):
     """
     Format current sensor readings for email reports.
@@ -128,11 +128,17 @@ def get_current_sensor_data_for_email(
     try:
 
         # Format sensor data
+        # Prefer Fahrenheit if provided, else show Celsius
+        if temp_f is not None:
+            air_temp_str = f"{temp_f:.1f} °F"
+        elif temp_c is not None:
+            air_temp_str = f"{temp_c:.1f} °C"
+        else:
+            air_temp_str = "No data"
+
         sensor_data = {
             "CO2": (f"{co2} ppm" if co2 is not None else "No data"),
-            "Air Temperature": (
-                f"{temp_c:.1f} °C" if temp_c is not None else "No data"
-            ),
+            "Air Temperature": air_temp_str,
             "Humidity": (
                 f"{humidity:.1f}%" if humidity is not None else "No data"
             ),
@@ -321,12 +327,15 @@ def send_daily_summary_email(
     try:
         logger.info("📧 Sending daily summary email")
 
+        # Calculate temp_f if temp_c is provided
+        temp_f = temp_c * 9 / 5 + 32 if temp_c is not None else None
         sensor_data, system_status = get_current_sensor_data_for_email(
-            moisture_pct,
-            moisture_status,
             co2,
             temp_c,
             humidity,
+            moisture_pct=moisture_pct,
+            moisture_status=moisture_status,
+            temp_f=temp_f,
         )
 
         success = email_notifier.send_status_report(
@@ -482,14 +491,14 @@ def main():
                     # Optionally send a startup status email once
                     if SEND_EMAIL_ON_STARTUP and not startup_email_sent:
                         try:
-                            sensor_data, system_status = (
-                                get_current_sensor_data_for_email(
-                                    moisture_pct,
-                                    moisture_status_last,
-                                    co2,
-                                    temp_c,
-                                    humidity,
-                                )
+                            temp_f = temp_c * 9 / 5 + 32 if temp_c is not None else None
+                            sensor_data, system_status = get_current_sensor_data_for_email(
+                                co2,
+                                temp_c,
+                                humidity,
+                                moisture_pct=moisture_pct,
+                                moisture_status=moisture_status_last,
+                                temp_f=temp_f,
                             )
                             if email_notifier.send_status_report(
                                 recipient_email=None,
