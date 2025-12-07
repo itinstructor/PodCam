@@ -111,14 +111,14 @@ def calculate_trimmed_mean(readings, trim_percent=0.1):
 
 # ---------------- GET CURRENT SENSOR DATA FOR EMAIL ----------------------- #
 def get_current_sensor_data_for_email(
-    co2, temp_c, humidity, moisture_pct=None, moisture_status=None, temp_f=None
+    co2, temp_f, humidity, moisture_pct=None, moisture_status=None, temp_c=None
 ):
     """
     Format current sensor readings for email reports.
 
     Args:
         cco2: CO2 concentration in ppm
-        temp_c: Air temperature in Celsius
+        temp_f: Air temperature in Fahrenheit
         humidity: Humidity percentage
 
     Returns:
@@ -129,8 +129,8 @@ def get_current_sensor_data_for_email(
 
         # Format sensor data
         # Always show Celsius
-        if temp_c is not None:
-            air_temp_str = f"{temp_c:.1f} °C"
+        if temp_f is not None:
+            air_temp_str = f"{temp_f:.1f} °C"
         else:
             air_temp_str = "No data"
 
@@ -311,12 +311,13 @@ def get_next_daily_email_time():
     except Exception:
         return None
 
+
 # ---------------------- SEND DAILY SUMMARY EMAIL -------------------------- #
 def send_daily_summary_email(
     moisture_pct,
     moisture_status,
     co2,
-    temp_c,
+    temp_f,
     humidity,
     scheduled_time=None,
 ):
@@ -326,14 +327,12 @@ def send_daily_summary_email(
         logger.info("📧 Sending daily summary email")
 
         # Calculate temp_f if temp_c is provided
-        temp_f = temp_c * 9 / 5 + 32 if temp_c is not None else None
         sensor_data, system_status = get_current_sensor_data_for_email(
             co2,
-            temp_c,
+            temp_f,
             humidity,
             moisture_pct=moisture_pct,
             moisture_status=moisture_status,
-            temp_f=temp_f,
         )
 
         success = email_notifier.send_status_report(
@@ -388,7 +387,7 @@ def main():
             # Check for scheduled emails before sensor readings
             if ENABLE_SCHEDULED_EMAILS:
                 # Get current sensor readings for email scheduling
-                current_co2, current_temp_c, current_humidity = (
+                current_co2, current_temp_f, current_humidity = (
                     co2_sensor.read_sensors()
                 )
                 # Get current moisture reading for email
@@ -412,7 +411,7 @@ def main():
                             current_moisture_pct,
                             current_moisture_status,
                             current_co2,
-                            current_temp_c,
+                            current_temp_f,
                             current_humidity,
                             scheduled_time=scheduled_time,
                         )
@@ -444,7 +443,7 @@ def main():
                         pass
 
             # Read SCD41 sensor data using the abstracted module
-            co2, temp_c, humidity = co2_sensor.read_sensors()
+            co2, temp_f, humidity = co2_sensor.read_sensors()
 
             # Read moisture sensor data
             moisture_data = moisture_sensor.read_sensor()
@@ -456,21 +455,21 @@ def main():
                 moisture_status_last = None
 
             # Check if SCD41 sensor data was retrieved successfully
-            if co2 is not None and temp_c is not None and humidity is not None:
+            if co2 is not None and temp_f is not None and humidity is not None:
 
                 # Log reading with moisture status
                 if moisture_pct is not None:
                     logger.info(
-                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {co2:.0f} ppm | {temp_c:.1f} °C | {humidity:.1f}% | Moisture: {moisture_pct:.1f}% ({moisture_status_last})"
+                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {co2:.0f} ppm | {temp_f:.1f} °F | {humidity:.1f}% | Moisture: {moisture_pct:.1f}% ({moisture_status_last})"
                     )
                 else:
                     logger.info(
-                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {co2:.0f} ppm | {temp_c:.1f} °C | {humidity:.1f}% | Moisture: No data"
+                        f"Reading {len(temp_readings)+1}/{READINGS_PER_CYCLE}: {co2:.0f} ppm | {temp_f:.1f} °F | {humidity:.1f}% | Moisture: No data"
                     )
 
                 # Add readings to lists for averaging
                 co2_readings.append(co2)
-                temp_readings.append(temp_c)
+                temp_readings.append(temp_f)
                 humidity_readings.append(humidity)
                 if moisture_pct is not None:
                     moisture_readings.append(moisture_pct)
@@ -480,7 +479,7 @@ def main():
                     logger.info("Sending initial reading to ThingSpeak")
                     thingspeak_send(
                         co2,
-                        temp_c,
+                        temp_f,
                         humidity,
                         moisture_pct,
                     )
@@ -489,14 +488,14 @@ def main():
                     # Optionally send a startup status email once
                     if SEND_EMAIL_ON_STARTUP and not startup_email_sent:
                         try:
-                            temp_f = temp_c * 9 / 5 + 32 if temp_c is not None else None
-                            sensor_data, system_status = get_current_sensor_data_for_email(
-                                co2,
-                                temp_c,
-                                humidity,
-                                moisture_pct=moisture_pct,
-                                moisture_status=moisture_status_last,
-                                temp_f=temp_f,
+                            sensor_data, system_status = (
+                                get_current_sensor_data_for_email(
+                                    co2,
+                                    temp_f,
+                                    humidity,
+                                    moisture_pct=moisture_pct,
+                                    moisture_status=moisture_status_last
+                                )
                             )
                             if email_notifier.send_status_report(
                                 recipient_email=None,
@@ -528,7 +527,7 @@ def main():
                         else None
                     )
                     logger.info(f"Avg CO2: {int(avg_co2)} ppm")
-                    logger.info(f"Avg Temperature: {avg_temp:.1f} °C")
+                    logger.info(f"Avg Temperature: {avg_temp:.1f} °F")
                     logger.info(f"Avg Humidity: {avg_humidity:.1f}%")
                     if avg_moisture is not None:
                         logger.info(
@@ -573,7 +572,7 @@ def thingspeak_send(co2, temp, hum, moisture):
         Note: The ThingSpeak channel is configured as:
             - field1 = CO2 (ppm)
             - field2 = Humidity (%)
-            - field3 = Temperature (°C)
+            - field3 = Temperature (°F)
             - field4 = Soil Moisture (%)
 
     If your channel uses a different field ordering, adjust the mapping below
