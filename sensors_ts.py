@@ -128,9 +128,9 @@ def get_current_sensor_data_for_email(
     try:
 
         # Format sensor data
-        # Always show Celsius
+        # Show temperature in Fahrenheit
         if temp_f is not None:
-            air_temp_str = f"{temp_f:.1f} °C"
+            air_temp_str = f"{temp_f:.1f} °F"
         else:
             air_temp_str = "No data"
 
