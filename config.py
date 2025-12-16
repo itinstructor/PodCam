@@ -68,20 +68,13 @@ LABEL_TRANSPARENCY = (
 TEXT_TRANSPARENCY = 0.9  # Text transparency for overlays (0.0 = fully transparent, 1.0 = fully opaque)
 TEXT_COLOR = (0, 85, 204)  # Text color for overlays (BGR format - burnt orange)
 
-# ------------------------- CAMERA EXPOSURE CONTROL ------------------------ #
+# ---------------------- CAMERA EXPOSURE CONTROL ----------------------- #
 # Control camera exposure and IR LED behavior
 # True = auto exposure, False = manual (set to False to stop flicker)
-CAMERA_AUTO_EXPOSURE = False
+CAMERA_AUTO_EXPOSURE = True
 
-# Exposure values for manual mode
-# Use lower value for day, higher for night (IR)
-# Example: 16 for bright daylight
-CAMERA_DAY_EXPOSURE_VALUE = 40
-# Example: 33 for IR night (increase if too dark: 100-300)
-CAMERA_NIGHT_EXPOSURE_VALUE = 30
-
-# For backward compatibility, you may keep this (used if not switching dynamically)
-CAMERA_EXPOSURE_VALUE = CAMERA_NIGHT_EXPOSURE_VALUE
+# 16, 33, 50, or 66 (for 60Hz)
+CAMERA_EXPOSURE_VALUE = 66  # Manual exposure value for night operation (increase if too dark: 100-300)
 
 # ------------------------ WEBSTREAM CONFIGURATION ------------------------- #
 # These constants (values that don't change) control how the camera behaves.
@@ -108,8 +101,7 @@ KNOWN_CAMERA_INDEX = 0
 
 # ---------------------- DAY/NIGHT CONFIG (software only) ----------------- #
 # Enable automatic day/night switching based on frame brightness
-# Set True to enable day/night label display
-ENABLE_DAY_NIGHT = True
+ENABLE_DAY_NIGHT = True  # Set True to enable day/night label display
 # Hysteresis thresholds on normalized luma (0.0-1.0). Use NIGHT < DAY.
 # Lower values = darker threshold. Tune based on your lighting:
 #   - If showing NIGHT during daylight → lower DAY_LUMA_THRESHOLD (try 0.30-0.40)
@@ -117,13 +109,10 @@ ENABLE_DAY_NIGHT = True
 #   - Keep ~0.10-0.15 gap between thresholds to prevent rapid switching
 #   - If flickering → increase sample interval to 300+ seconds
 # NOTE: Luma is measured from UNCORRECTED frame (before RGB correction/WB)
-# Switch to night mode when brightness drops below this (raised for IR illumination)
-NIGHT_LUMA_THRESHOLD = 0.25
-# Switch to day mode when brightness rises above this (lowered for IR illumination)
-DAY_LUMA_THRESHOLD = 0.18
-# How often in (seconds) to sample brightness to consider switching
-# Check more often for maximum stability
-LUMA_SAMPLE_EVERY_SEC = 15.0
+NIGHT_LUMA_THRESHOLD = 0.20  # Switch to night mode when brightness drops below this (raised for IR illumination)
+DAY_LUMA_THRESHOLD = 0.28  # Switch to day mode when brightness rises above this (lowered for IR illumination)
+# How often (seconds) to sample brightness to consider switching
+LUMA_SAMPLE_EVERY_SEC = 420.0  # Check every 7 minutes for maximum stability
 
 # ---------------------- RGB LED COLOR CORRECTION -------------------------- #
 # Adjust colors to compensate for RGB LED lighting
@@ -142,8 +131,7 @@ RGB_LED_GAMMA = 1.5
 
 # Software White Balance (in addition to the base multipliers above)
 # Modes: "off" (no auto WB), "auto_grayworld" (estimate per-frame gains)
-# NOTE: Auto WB disabled due to flickering
-# Use manual RGB multipliers or calibrate with /wb/calibrate
+# NOTE: Auto WB disabled due to flickering - use manual RGB multipliers or calibrate with /wb/calibrate
 WB_MODE = "on"
 
 # How quickly to adapt to new lighting (0.0-1.0). Lower = smoother.
