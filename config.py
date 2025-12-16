@@ -89,7 +89,7 @@ CAMERA_EXPOSURE_VALUE = CAMERA_NIGHT_EXPOSURE_VALUE
 
 # Pod (Camera 0) Frame Rate Settings
 # How many pictures per second we want the camera to take
-CAMERA_FRAME_RATE = 20.0
+CAMERA_FRAME_RATE = 5.0
 
 # Note: Some cameras may ignore frame rate settings and use their own preferred rate.
 # This is normal hardware behavior - the camera will tell us what it's actually using.
