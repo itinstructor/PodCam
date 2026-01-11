@@ -21,9 +21,14 @@ from logging_config import setup_email_logger
 
 # Import configuration
 from config import (
-    SMTP_SERVER, SMTP_PORT, EMAIL_TIMEOUT,
-    DEFAULT_SENDER_EMAIL, DEFAULT_SENDER_PASSWORD,
-    DEFAULT_RECIPIENT_EMAILS, SUBJECT_PREFIX, DEFAULT_SUBJECT,
+    SMTP_SERVER,
+    SMTP_PORT,
+    EMAIL_TIMEOUT,
+    DEFAULT_SENDER_EMAIL,
+    DEFAULT_SENDER_PASSWORD,
+    DEFAULT_RECIPIENT_EMAILS,
+    SUBJECT_PREFIX,
+    DEFAULT_SUBJECT,
 )
 
 # Setup logging when module is imported (no console output)
@@ -69,7 +74,7 @@ class EmailNotifier:
 
         logger.info(f"Email notifier initialized for {self.sender_email}")
 
-    # -------------------------- DEDUP HELPERS --------------------------- #
+    # --------------------------- DEDUP HELPERS ---------------------------- #
     def _load_send_state(self):
         """Load last-send state from disk."""
         try:
@@ -96,7 +101,9 @@ class EmailNotifier:
             # Fallback minimal checksum
             return str(abs(hash(content)))
 
-    def _should_send_dedup(self, kind: str, checksum: str, min_interval_sec: int = 300) -> bool:
+    def _should_send_dedup(
+        self, kind: str, checksum: str, min_interval_sec: int = 300
+    ) -> bool:
         """Decide whether to send based on recent history.
 
         - Send if content changed (checksum differs)
@@ -124,19 +131,21 @@ class EmailNotifier:
     def _load_html_template(self, template_name):
         """
         Load HTML template from file.
-        
+
         Args:
             template_name (str): Name of the template file
-            
+
         Returns:
             str: HTML template content, or None if file not found
         """
         try:
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            template_path = os.path.join(script_dir, "html_templates", template_name)
-            
+            template_path = os.path.join(
+                script_dir, "html_templates", template_name
+            )
+
             if os.path.exists(template_path):
-                with open(template_path, 'r', encoding='utf-8') as f:
+                with open(template_path, "r", encoding="utf-8") as f:
                     return f.read()
             else:
                 logger.warning(f"HTML template not found: {template_path}")
@@ -148,34 +157,34 @@ class EmailNotifier:
     def _generate_message_id(self):
         """
         Generate a unique Message-ID header for better email deliverability.
-        
+
         Returns:
             str: Unique message ID
         """
         import uuid
         import socket
-        
+
         # Get hostname or use a default
         try:
             hostname = socket.getfqdn()
-            if not hostname or hostname == 'localhost':
+            if not hostname or hostname == "localhost":
                 hostname = "wncc-PodsInSpace.local"
         except:
             hostname = "wncc-PodsInSpace.local"
-            
+
         # Generate unique ID
         unique_id = str(uuid.uuid4())
         timestamp = str(int(datetime.now().timestamp()))
-        
+
         return f"<{timestamp}.{unique_id}@{hostname}>"
 
     def _normalize_recipients(self, recipients):
         """
         Normalize recipients to a list format.
-        
+
         Args:
             recipients (str or list): Email address(es) to send to
-            
+
         Returns:
             list: List of email addresses
         """
@@ -184,7 +193,9 @@ class EmailNotifier:
         elif isinstance(recipients, list):
             return recipients
         else:
-            logger.warning(f"Invalid recipient type: {type(recipients)}, using default")
+            logger.warning(
+                f"Invalid recipient type: {type(recipients)}, using default"
+            )
             return DEFAULT_RECIPIENT_EMAILS
 
     def send_email(
@@ -198,7 +209,7 @@ class EmailNotifier:
         Send an HTML email using Gmail SMTP to one or more recipients.
 
         Args:
-            recipient_email (str or list): Email address(es) to send to. 
+            recipient_email (str or list): Email address(es) to send to.
                                          Can be a single email string or list of emails.
                                          If None, uses DEFAULT_RECIPIENT_EMAILS
             subject (str): Email subject line
@@ -213,13 +224,13 @@ class EmailNotifier:
             if not html_message:
                 logger.error("HTML message is required")
                 return False
-                
+
             # Handle recipients
             if recipient_email is None:
                 recipients = DEFAULT_RECIPIENT_EMAILS
             else:
                 recipients = self._normalize_recipients(recipient_email)
-            
+
             # Validate we have at least one recipient
             if not recipients:
                 logger.error("No recipients specified")
@@ -227,10 +238,14 @@ class EmailNotifier:
 
             # Create message container for HTML only
             msg = MIMEMultipart("alternative")
-            msg["From"] = f"WNCC PodsInSpace System <{self.sender_email}>"  # Add friendly name
-            msg["To"] = ", ".join(recipients)  # Join multiple recipients with commas
+            msg["From"] = (
+                f"WNCC PodsInSpace System <{self.sender_email}>"  # Add friendly name
+            )
+            msg["To"] = ", ".join(
+                recipients
+            )  # Join multiple recipients with commas
             msg["Subject"] = subject
-            
+
             # Add anti-spam headers to improve deliverability
             msg["Reply-To"] = self.sender_email
             msg["Return-Path"] = self.sender_email
@@ -260,8 +275,13 @@ class EmailNotifier:
             logger.error(f"Error creating email message: {e}")
             return False
 
+    # ----------------------------- SEND ALERT ----------------------------- #
     def send_alert(
-        self, recipient_email=None, alert_type="Alert", alert_message="", sensor_data=None
+        self,
+        recipient_email=None,
+        alert_type="Alert",
+        alert_message="",
+        sensor_data=None,
     ):
         """
         Send a formatted alert email for PodsInSpace system issues.
@@ -286,14 +306,18 @@ class EmailNotifier:
             # Create HTML version using template
             html_template = self._load_html_template("alert_email.html")
             html_message = None
-            
+
             if html_template:
                 # Generate sensor data table if sensor data is provided
                 sensor_data_table = ""
                 if sensor_data:
                     # Reorder sensor_data so Air Temperature, Humidity, and Pressure
                     # appear at the bottom of the alert email as well.
-                    preferred_bottom = ["Air Temperature", "Humidity", "Pressure"]
+                    preferred_bottom = [
+                        "Air Temperature",
+                        "Humidity",
+                        "Pressure",
+                    ]
                     ordered_items = []
                     for k, v in sensor_data.items():
                         if k not in preferred_bottom:
@@ -326,13 +350,13 @@ class EmailNotifier:
             </table>
         </div>
 """
-                
+
                 # Replace placeholders in template
                 html_message = html_template.format(
                     alert_type=alert_type,
                     timestamp=timestamp,
                     alert_message=alert_message,
-                    sensor_data_table=sensor_data_table
+                    sensor_data_table=sensor_data_table,
                 )
             else:
                 # Fallback to inline HTML if template not available
@@ -382,7 +406,11 @@ class EmailNotifier:
 
                 if sensor_data:
                     # Reorder sensor_data in fallback HTML for alerts too
-                    preferred_bottom = ["Air Temperature", "Humidity", "Pressure"]
+                    preferred_bottom = [
+                        "Air Temperature",
+                        "Humidity",
+                        "Pressure",
+                    ]
                     ordered_items = []
                     for k, v in sensor_data.items():
                         if k not in preferred_bottom:
@@ -447,14 +475,13 @@ class EmailNotifier:
 </html>
 """
 
-            return self.send_email(
-                recipient_email, subject, html_message
-            )
+            return self.send_email(recipient_email, subject, html_message)
 
         except Exception as e:
             logger.error(f"Error sending alert email: {e}")
             return False
 
+    # -------------------------- SEND STATUS REPORT ------------------------ #
     def send_status_report(
         self,
         recipient_email=None,
@@ -520,18 +547,22 @@ class EmailNotifier:
                     </tr>"""
 
                 # Set status color
-                status_color = "#4caf50" if system_status == "Normal" else "#f44336"
+                status_color = (
+                    "#4caf50" if system_status == "Normal" else "#f44336"
+                )
 
                 # Replace placeholders in template
                 html_message = html_template.format(
                     timestamp=timestamp,
                     system_status=system_status,
                     status_color=status_color,
-                    sensor_data_rows=sensor_rows
+                    sensor_data_rows=sensor_rows,
                 )
             else:
                 # Fallback HTML if template loading fails
-                status_color = "#4caf50" if system_status == "Normal" else "#f44336"
+                status_color = (
+                    "#4caf50" if system_status == "Normal" else "#f44336"
+                )
                 html_message = f"""
 <html>
 <body style="font-family: Arial, sans-serif;">
@@ -565,15 +596,17 @@ class EmailNotifier:
             try:
                 checksum = self._content_checksum(subject + "\n" + html_message)
                 kind = dedup_key or "status_report"
-                if not self._should_send_dedup(kind, checksum, min_interval_sec=300):
-                    logger.info("Skipping duplicate status report within 5 minutes window")
+                if not self._should_send_dedup(
+                    kind, checksum, min_interval_sec=300
+                ):
+                    logger.info(
+                        "Skipping duplicate status report within 5 minutes window"
+                    )
                     return True  # Treat as success to avoid retries/escalations
             except Exception as e:
                 logger.warning(f"Dedup check failed, proceeding to send: {e}")
 
-            sent = self.send_email(
-                recipient_email, subject, html_message
-            )
+            sent = self.send_email(recipient_email, subject, html_message)
 
             if sent:
                 # Only record on successful send
@@ -627,7 +660,7 @@ class EmailNotifier:
         try:
             # Normalize recipients to list
             recipient_list = self._normalize_recipients(recipients)
-            
+
             # Create SMTP session
             server = smtplib.SMTP(self.smtp_server, self.smtp_port)
 
@@ -646,8 +679,10 @@ class EmailNotifier:
             if len(recipient_list) == 1:
                 logger.info(f"Email sent successfully to {recipient_list[0]}")
             else:
-                logger.info(f"Email sent successfully to {len(recipient_list)} recipients: {', '.join(recipient_list)}")
-            
+                logger.info(
+                    f"Email sent successfully to {len(recipient_list)} recipients: {', '.join(recipient_list)}"
+                )
+
             return True
 
         except smtplib.SMTPAuthenticationError:
@@ -778,7 +813,9 @@ def main():
 </html>
 """
 
-        if notifier.send_email(subject=test_subject, html_message=test_html_message):
+        if notifier.send_email(
+            subject=test_subject, html_message=test_html_message
+        ):
             print("✅ Test email sent successfully!")
         else:
             print("❌ Failed to send test email!")

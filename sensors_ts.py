@@ -33,11 +33,17 @@ from config import (
     SEND_EMAIL_ON_STARTUP,
 )
 
+# Import alert system
+from alert_system import AlertSystem, format_alert_body
+
 # Setup logging for sensors module
 logger = setup_sensor_logger()
 
 # Initialize email notification system
 email_notifier = EmailNotifier()
+
+# Initialize alert system
+alert_system = AlertSystem()
 
 # Substitute your api key in this file for updating your ThingSpeak channel
 TS_KEY = api_key_ts.THINGSPEAK_API_KEY
@@ -541,6 +547,46 @@ def main():
                         avg_humidity,
                         avg_moisture,
                     )
+
+                    # Check sensor thresholds and send alerts if needed
+                    has_alerts, alert_messages = alert_system.check_all(
+                        co2_ppm=avg_co2,
+                        temp_f=avg_temp,
+                        humidity_pct=avg_humidity,
+                        moisture_pct=avg_moisture,
+                    )
+
+                    if has_alerts:
+                        logger.warning(f"ALERT: {' | '.join(alert_messages)}")
+                        try:
+                            # Format alert email subject from messages
+                            alert_type = " | ".join(
+                                [msg.split(":")[0] for msg in alert_messages]
+                            )
+
+                            # Format alert email body
+                            alert_body = format_alert_body(
+                                alert_messages,
+                                co2=avg_co2,
+                                temp=avg_temp,
+                                humidity=avg_humidity,
+                                moisture=avg_moisture,
+                            )
+
+                            # Send alert email
+                            if email_notifier.send_alert(
+                                recipient_email=None,
+                                alert_type="Sensor Threshold",
+                                alert_message=alert_body,
+                            ):
+                                logger.info("📧 Alert email sent")
+                            else:
+                                logger.debug("Alert email failed")
+                        except Exception as e:
+                            logger.error(f"Error sending alert email: {e}")
+
+                        # Reset alerts for next cycle
+                        alert_system.reset()
 
                     # Clear the reading lists for the next cycle
                     moisture_readings.clear()
