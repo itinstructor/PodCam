@@ -183,6 +183,13 @@ class AlertTester:
     def _send_test_email(self, alert_messages, co2=None, temp=None, humidity=None, moisture=None):
         """Send a test alert email to recipients configured in config.py."""
         try:
+            # Filter out None values from alert messages
+            alert_messages = [msg for msg in alert_messages if msg is not None]
+            
+            if not alert_messages:
+                print("✗ No alerts to send")
+                return
+            
             # Format email body
             body = format_alert_body(
                 alert_messages,
@@ -193,12 +200,18 @@ class AlertTester:
             )
 
             print("\n📧 Sending test email to:")
-            for recipient in DEFAULT_RECIPIENT_EMAILS:
+            # Ensure recipients is a list and filter out None values
+            recipients = [r for r in DEFAULT_RECIPIENT_EMAILS if r is not None]
+            if not recipients:
+                print("✗ No recipients configured in config.py")
+                return
+            
+            for recipient in recipients:
                 print(f"   - {recipient}")
 
             # Send alert email using recipients from config.py
             if self.email_notifier.send_alert(
-                recipient_email=DEFAULT_RECIPIENT_EMAILS,
+                recipient_email=recipients,
                 alert_type="TEST: Sensor Threshold",
                 alert_message=body,
             ):
