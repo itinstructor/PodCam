@@ -19,6 +19,7 @@ from alerts_config import (
     HUMIDITY_ALERT_LOW,
     MOISTURE_ALERT_LOW,
 )
+from config import DEFAULT_RECIPIENT_EMAILS
 from email_notification import EmailNotifier
 from logging_config import setup_sensor_logger
 
@@ -180,7 +181,7 @@ class AlertTester:
         return len(all_alerts)
 
     def _send_test_email(self, alert_messages, co2=None, temp=None, humidity=None, moisture=None):
-        """Send a test alert email."""
+        """Send a test alert email to recipients configured in config.py."""
         try:
             # Format email body
             body = format_alert_body(
@@ -191,10 +192,13 @@ class AlertTester:
                 moisture=moisture,
             )
 
-            print("\n📧 Sending test email...")
-            # Send alert email
+            print("\n📧 Sending test email to:")
+            for recipient in DEFAULT_RECIPIENT_EMAILS:
+                print(f"   - {recipient}")
+
+            # Send alert email using recipients from config.py
             if self.email_notifier.send_alert(
-                recipient_email=None,
+                recipient_email=DEFAULT_RECIPIENT_EMAILS,
                 alert_type="TEST: Sensor Threshold",
                 alert_message=body,
             ):
