@@ -297,6 +297,14 @@ class EmailNotifier:
             bool: True if alert sent successfully, False otherwise
         """
         try:
+            # Determine recipients
+            if recipient_email is None:
+                recipients = DEFAULT_RECIPIENT_EMAILS
+            else:
+                recipients = self._normalize_recipients(recipient_email)
+            
+            logger.debug(f"send_alert called - Type: '{alert_type}', Recipients: {recipients}, Message length: {len(alert_message)} chars")
+            
             # Create alert subject
             subject = f"{SUBJECT_PREFIX} {alert_type} Alert"
 
@@ -661,40 +669,45 @@ class EmailNotifier:
             # Normalize recipients to list
             recipient_list = self._normalize_recipients(recipients)
 
+            logger.debug(f"Attempting SMTP connection to {self.smtp_server}:{self.smtp_port}")
+            
             # Create SMTP session
             server = smtplib.SMTP(self.smtp_server, self.smtp_port)
 
             # Enable TLS encryption
+            logger.debug("Initiating TLS encryption")
             server.starttls()
 
             # Login with sender credentials
+            logger.debug(f"Authenticating with Gmail account: {self.sender_email}")
             server.login(self.sender_email, self.sender_password)
 
             # Send email to all recipients
             text = msg.as_string()
+            logger.debug(f"Sending email with subject: {msg.get('Subject')}")
             server.sendmail(self.sender_email, recipient_list, text)
             server.quit()
 
             # Log successful delivery
             if len(recipient_list) == 1:
-                logger.info(f"Email sent successfully to {recipient_list[0]}")
+                logger.info(f"✅ Email sent successfully to {recipient_list[0]}")
             else:
                 logger.info(
-                    f"Email sent successfully to {len(recipient_list)} recipients: {', '.join(recipient_list)}"
+                    f"✅ Email sent successfully to {len(recipient_list)} recipients: {', '.join(recipient_list)}"
                 )
 
             return True
 
-        except smtplib.SMTPAuthenticationError:
+        except smtplib.SMTPAuthenticationError as e:
             logger.error(
-                "SMTP Authentication failed. Check email and password."
+                f"❌ SMTP Authentication failed for {self.sender_email}. Check email and app password."
             )
             return False
         except smtplib.SMTPException as e:
-            logger.error(f"SMTP error occurred: {e}")
+            logger.error(f"❌ SMTP error occurred: {e}")
             return False
         except Exception as e:
-            logger.error(f"Error sending email: {e}")
+            logger.error(f"❌ Error sending email: {e}", exc_info=True)
             return False
 
     def test_connection(self):

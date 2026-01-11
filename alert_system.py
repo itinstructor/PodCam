@@ -59,6 +59,7 @@ class AlertSystem:
 
     def reset(self):
         """Reset all alert state (use when starting fresh/testing)."""
+        logger.debug("Resetting all alert states")
         self.active_alerts.clear()
         self.alert_counts.clear()
 
@@ -89,18 +90,22 @@ class AlertSystem:
             self.active_alerts[alert_key] = True
             # Send alert if dedup is off OR first time OR under limit
             if not ALERT_DEDUP or count == 0 or count < max_cap:
-                alerts.append(
-                    f"🌡️ HIGH TEMPERATURE: {temp_f:.1f}°F (threshold: {TEMP_ALERT_HIGH}°F)"
-                )
+                msg = f"🌡️ HIGH TEMPERATURE: {temp_f:.1f}°F (threshold: {TEMP_ALERT_HIGH}°F)"
+                alerts.append(msg)
                 if count < max_cap:
                     self.alert_counts[alert_key] = count + 1
+                    logger.warning(f"Temperature alert triggered: {temp_f:.1f}°F exceeds {TEMP_ALERT_HIGH}°F (count: {count + 1}/{max_cap})")
+                else:
+                    logger.debug(f"Temperature still elevated: {temp_f:.1f}°F (at max alert limit {max_cap})")
+            else:
+                logger.debug(f"Temperature violation suppressed: {temp_f:.1f}°F (count: {count}/{max_cap})")
         else:
             # Recovery: previously violated, now back to normal
             if self.active_alerts.pop("temp_high", None):
-                alerts.append(
-                    f"ℹ️ Temperature normalized: {temp_f:.1f}°F (below {TEMP_ALERT_HIGH}°F)"
-                )
+                msg = f"ℹ️ Temperature normalized: {temp_f:.1f}°F (below {TEMP_ALERT_HIGH}°F)"
+                alerts.append(msg)
                 self.alert_counts["temp_high"] = 0
+                logger.info(f"Temperature recovered to safe level: {temp_f:.1f}°F")
 
         # Check low temperature
         if temp_f < TEMP_ALERT_LOW:
@@ -111,17 +116,21 @@ class AlertSystem:
             self.active_alerts[alert_key] = True
             # Send alert if dedup is off OR first time OR under limit
             if not ALERT_DEDUP or count == 0 or count < max_cap:
-                alerts.append(
-                    f"🌡️ LOW TEMPERATURE: {temp_f:.1f}°F (threshold: {TEMP_ALERT_LOW}°F)"
-                )
+                msg = f"🌡️ LOW TEMPERATURE: {temp_f:.1f}°F (threshold: {TEMP_ALERT_LOW}°F)"
+                alerts.append(msg)
                 if count < max_cap:
                     self.alert_counts[alert_key] = count + 1
+                    logger.warning(f"Low temperature alert triggered: {temp_f:.1f}°F below {TEMP_ALERT_LOW}°F (count: {count + 1}/{max_cap})")
+                else:
+                    logger.debug(f"Low temperature still below threshold: {temp_f:.1f}°F (at max alert limit {max_cap})")
+            else:
+                logger.debug(f"Low temperature violation suppressed: {temp_f:.1f}°F (count: {count}/{max_cap})")
         else:
             if self.active_alerts.pop("temp_low", None):
-                alerts.append(
-                    f"ℹ️ Temperature normalized: {temp_f:.1f}°F (above {TEMP_ALERT_LOW}°F)"
-                )
+                msg = f"ℹ️ Temperature normalized: {temp_f:.1f}°F (above {TEMP_ALERT_LOW}°F)"
+                alerts.append(msg)
                 self.alert_counts["temp_low"] = 0
+                logger.info(f"Low temperature recovered to safe level: {temp_f:.1f}°F")
 
         if alerts:
             return True, " | ".join(alerts)
@@ -151,11 +160,17 @@ class AlertSystem:
                 msg = f"⚠️ HIGH CO2: {co2_ppm:.0f} ppm (threshold: {CO2_ALERT_HIGH} ppm)"
                 if count < max_cap:
                     self.alert_counts[alert_key] = count + 1
+                    logger.warning(f"CO2 alert triggered: {co2_ppm:.0f} ppm exceeds {CO2_ALERT_HIGH} ppm (count: {count + 1}/{max_cap})")
+                else:
+                    logger.debug(f"CO2 still elevated: {co2_ppm:.0f} ppm (at max alert limit {max_cap})")
                 return True, msg
+            else:
+                logger.debug(f"CO2 violation suppressed: {co2_ppm:.0f} ppm (count: {count}/{max_cap})")
         else:
             if self.active_alerts.pop("co2_high", None):
                 msg = f"ℹ️ CO2 normalized: {co2_ppm:.0f} ppm (below {CO2_ALERT_HIGH} ppm)"
                 self.alert_counts["co2_high"] = 0
+                logger.info(f"CO2 recovered to safe level: {co2_ppm:.0f} ppm")
                 return True, msg
 
         return False, None
@@ -184,17 +199,21 @@ class AlertSystem:
             self.active_alerts[alert_key] = True
             # Send alert if dedup is off OR first time OR under limit
             if not ALERT_DEDUP or count == 0 or count < max_cap:
-                alerts.append(
-                    f"💧 HIGH HUMIDITY: {humidity_pct:.1f}% (threshold: {HUMIDITY_ALERT_HIGH}%)"
-                )
+                msg = f"💧 HIGH HUMIDITY: {humidity_pct:.1f}% (threshold: {HUMIDITY_ALERT_HIGH}%)"
+                alerts.append(msg)
                 if count < max_cap:
                     self.alert_counts[alert_key] = count + 1
+                    logger.warning(f"High humidity alert triggered: {humidity_pct:.1f}% exceeds {HUMIDITY_ALERT_HIGH}% (count: {count + 1}/{max_cap})")
+                else:
+                    logger.debug(f"High humidity still above threshold: {humidity_pct:.1f}% (at max alert limit {max_cap})")
+            else:
+                logger.debug(f"High humidity violation suppressed: {humidity_pct:.1f}% (count: {count}/{max_cap})")
         else:
             if self.active_alerts.pop("humidity_high", None):
-                alerts.append(
-                    f"ℹ️ Humidity normalized: {humidity_pct:.1f}% (below {HUMIDITY_ALERT_HIGH}%)"
-                )
+                msg = f"ℹ️ Humidity normalized: {humidity_pct:.1f}% (below {HUMIDITY_ALERT_HIGH}%)"
+                alerts.append(msg)
                 self.alert_counts["humidity_high"] = 0
+                logger.info(f"High humidity recovered to safe level: {humidity_pct:.1f}%")
 
         # Check low humidity
         if humidity_pct < HUMIDITY_ALERT_LOW:
@@ -205,17 +224,21 @@ class AlertSystem:
             self.active_alerts[alert_key] = True
             # Send alert if dedup is off OR first time OR under limit
             if not ALERT_DEDUP or count == 0 or count < max_cap:
-                alerts.append(
-                    f"💧 LOW HUMIDITY: {humidity_pct:.1f}% (threshold: {HUMIDITY_ALERT_LOW}%)"
-                )
+                msg = f"💧 LOW HUMIDITY: {humidity_pct:.1f}% (threshold: {HUMIDITY_ALERT_LOW}%)"
+                alerts.append(msg)
                 if count < max_cap:
                     self.alert_counts[alert_key] = count + 1
+                    logger.warning(f"Low humidity alert triggered: {humidity_pct:.1f}% below {HUMIDITY_ALERT_LOW}% (count: {count + 1}/{max_cap})")
+                else:
+                    logger.debug(f"Low humidity still below threshold: {humidity_pct:.1f}% (at max alert limit {max_cap})")
+            else:
+                logger.debug(f"Low humidity violation suppressed: {humidity_pct:.1f}% (count: {count}/{max_cap})")
         else:
             if self.active_alerts.pop("humidity_low", None):
-                alerts.append(
-                    f"ℹ️ Humidity normalized: {humidity_pct:.1f}% (above {HUMIDITY_ALERT_LOW}%)"
-                )
+                msg = f"ℹ️ Humidity normalized: {humidity_pct:.1f}% (above {HUMIDITY_ALERT_LOW}%)"
+                alerts.append(msg)
                 self.alert_counts["humidity_low"] = 0
+                logger.info(f"Low humidity recovered to safe level: {humidity_pct:.1f}%")
 
         if alerts:
             return True, " | ".join(alerts)
@@ -245,6 +268,17 @@ class AlertSystem:
                 msg = f"🌱 LOW SOIL MOISTURE: {moisture_pct:.1f}% (threshold: {MOISTURE_ALERT_LOW}%)"
                 if count < max_cap:
                     self.alert_counts[alert_key] = count + 1
+                    logger.warning(f"Low moisture alert triggered: {moisture_pct:.1f}% below {MOISTURE_ALERT_LOW}% (count: {count + 1}/{max_cap})")
+                else:
+                    logger.debug(f"Low moisture still below threshold: {moisture_pct:.1f}% (at max alert limit {max_cap})")
+                return True, msg
+            else:
+                logger.debug(f"Low moisture violation suppressed: {moisture_pct:.1f}% (count: {count}/{max_cap})")
+        else:
+            if self.active_alerts.pop("moisture_low", None):
+                msg = f"ℹ️ Soil moisture normalized: {moisture_pct:.1f}% (above {MOISTURE_ALERT_LOW}%)"
+                self.alert_counts["moisture_low"] = 0
+                logger.info(f"Low moisture recovered to safe level: {moisture_pct:.1f}%")
                 return True, msg
         else:
             if self.active_alerts.pop("moisture_low", None):
@@ -288,7 +322,13 @@ class AlertSystem:
         if moisture_alert:
             messages.append(moisture_msg)
 
-        return len(messages) > 0, messages
+        has_alerts = len(messages) > 0
+        if has_alerts:
+            logger.info(f"Alert cycle complete: {len(messages)} alert(s) to send - {', '.join([m[:30] + '...' if len(m) > 30 else m for m in messages])}")
+        else:
+            logger.debug("Alert cycle complete: All sensors within normal range")
+        
+        return has_alerts, messages
 
 
 def format_alert_body(alerts_list, co2=None, temp=None, humidity=None, moisture=None):

@@ -508,19 +508,21 @@ def main():
                             only_info_rt = all(str(m).strip().startswith("ℹ️") for m in rt_messages if m)
                             subject_type_rt = "Alert Cleared" if only_info_rt else "Sensor Threshold"
 
+                            logger.info(f"Preparing to send real-time alert - Type: {subject_type_rt}, Message count: {len(rt_messages)}")
+                            
                             sent = email_notifier.send_alert(
                                 recipient_email=None,
                                 alert_type=subject_type_rt,
                                 alert_message=rt_body,
                             )
                             if sent:
-                                logger.info("📧 Real-time alert email sent")
+                                logger.info(f"📧 Real-time alert email sent successfully - Subject: {subject_type_rt}")
                             else:
-                                logger.debug("Real-time alert email failed")
+                                logger.error(f"📧 Real-time alert email FAILED - Subject: {subject_type_rt}, Alert count: {len(rt_messages)}")
 
                             # Do not reset here; AlertSystem enforces per-violation limits
                     except Exception as e:
-                        logger.error(f"Error in real-time alerting: {e}")
+                        logger.error(f"Error in real-time alerting: {e}", exc_info=True)
 
                 # Send initial reading on startup
                 if not initial_reading_sent:
@@ -614,17 +616,20 @@ def main():
                                 moisture=avg_moisture,
                             )
 
+                            # Log alert details before sending
+                            logger.info(f"Preparing to send alert email - Type: {subject_type}, Message count: {len(alert_messages)}")
+                            
                             # Send alert email
                             if email_notifier.send_alert(
                                 recipient_email=None,
                                 alert_type=subject_type,
                                 alert_message=alert_body,
                             ):
-                                logger.info("📧 Alert email sent")
+                                logger.info(f"📧 Alert email sent successfully - Subject: {subject_type}")
                             else:
-                                logger.debug("Alert email failed")
+                                logger.error(f"📧 Alert email FAILED - Subject: {subject_type}, Alert count: {len(alert_messages)}")
                         except Exception as e:
-                            logger.error(f"Error sending alert email: {e}")
+                            logger.error(f"Error sending alert email: {e}", exc_info=True)
 
                         # Do not reset here; AlertSystem handles recovery and limits
 
