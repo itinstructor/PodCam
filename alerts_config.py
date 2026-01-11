@@ -4,7 +4,7 @@ Define thresholds and alert settings here for easy maintenance
 """
 
 # Temperature Alert Thresholds
-TEMP_ALERT_HIGH = 85  # °F - Alert if temperature exceeds this
+TEMP_ALERT_HIGH = 72  # °F - Alert if temperature exceeds this
 TEMP_ALERT_LOW = 70  # °F - Alert if temperature drops below this
 TEMP_ALERT_ENABLED = True
 
