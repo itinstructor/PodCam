@@ -30,7 +30,7 @@ DEFAULT_SENDER_PASSWORD = (
 DEFAULT_RECIPIENT_EMAILS = [
     "williamaloring@gmail.com",
     "williamloring@hotmail.com",
-    "sarah.trook31@gmail.com",
+    # "sarah.trook31@gmail.com",
 ]
 
 # Email template constants
