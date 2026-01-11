@@ -33,49 +33,37 @@ class AlertTester:
         self.alert_system = AlertSystem()
         self.email_notifier = EmailNotifier()
 
-    def test_temperature(self, temp_f, send_email=False):
+    def test_temperature(self, temp_f):
         """Test temperature alert at specific value."""
         print(f"\n{'='*60}")
         print(f"Testing Temperature Alert: {temp_f}°F")
         print(f"{'='*60}")
         print(f"Configured thresholds: {TEMP_ALERT_LOW}°F - {TEMP_ALERT_HIGH}°F")
 
-        # Check alert
         has_alert, msg = self.alert_system.check_temperature(temp_f)
-
         if has_alert:
             print(f"✓ ALERT TRIGGERED: {msg}")
+            self._send_test_email([msg], temp_f=temp_f)
         else:
             print(f"✗ No alert (within safe range)")
-
-        # Send email if requested
-        if has_alert and send_email:
-            self._send_test_email([msg], temp_f=temp_f)
-
         return has_alert
 
-    def test_co2(self, co2_ppm, send_email=False):
+    def test_co2(self, co2_ppm):
         """Test CO2 alert at specific value."""
         print(f"\n{'='*60}")
         print(f"Testing CO2 Alert: {co2_ppm} ppm")
         print(f"{'='*60}")
         print(f"Configured threshold: > {CO2_ALERT_HIGH} ppm")
 
-        # Check alert
         has_alert, msg = self.alert_system.check_co2(co2_ppm)
-
         if has_alert:
             print(f"✓ ALERT TRIGGERED: {msg}")
+            self._send_test_email([msg], co2=co2_ppm)
         else:
             print(f"✗ No alert (within safe range)")
-
-        # Send email if requested
-        if has_alert and send_email:
-            self._send_test_email([msg], co2=co2_ppm)
-
         return has_alert
 
-    def test_humidity(self, humidity_pct, send_email=False):
+    def test_humidity(self, humidity_pct):
         """Test humidity alert at specific value."""
         print(f"\n{'='*60}")
         print(f"Testing Humidity Alert: {humidity_pct}%")
@@ -89,16 +77,13 @@ class AlertTester:
 
         if has_alert:
             print(f"✓ ALERT TRIGGERED: {msg}")
+            self._send_test_email([msg], humidity=humidity_pct)
         else:
             print(f"✗ No alert (within safe range)")
 
-        # Send email if requested
-        if has_alert and send_email:
-            self._send_test_email([msg], humidity=humidity_pct)
-
         return has_alert
 
-    def test_moisture(self, moisture_pct, send_email=False):
+    def test_moisture(self, moisture_pct):
         """Test moisture alert at specific value."""
         print(f"\n{'='*60}")
         print(f"Testing Soil Moisture Alert: {moisture_pct}%")
@@ -110,16 +95,13 @@ class AlertTester:
 
         if has_alert:
             print(f"✓ ALERT TRIGGERED: {msg}")
+            self._send_test_email([msg], moisture=moisture_pct)
         else:
             print(f"✗ No alert (within safe range)")
 
-        # Send email if requested
-        if has_alert and send_email:
-            self._send_test_email([msg], moisture=moisture_pct)
-
         return has_alert
 
-    def test_all_at_limits(self, send_email=False):
+    def test_all_at_limits(self):
         """Test all sensors at upper and lower limits."""
         print(f"\n{'='*70}")
         print("COMPREHENSIVE ALERT SYSTEM TEST - ALL SENSORS AT LIMITS")
@@ -129,58 +111,58 @@ class AlertTester:
 
         # Test high temperature
         print(f"\n1. HIGH TEMPERATURE TEST ({TEMP_ALERT_HIGH + 2}°F)")
-        has_alert = self.test_temperature(TEMP_ALERT_HIGH + 2, send_email=False)
+        has_alert = self.test_temperature(TEMP_ALERT_HIGH + 2)
         if has_alert:
             _, msg = self.alert_system.check_temperature(TEMP_ALERT_HIGH + 2)
             all_alerts.append(msg)
 
         # Test low temperature
         print(f"\n2. LOW TEMPERATURE TEST ({TEMP_ALERT_LOW - 2}°F)")
-        has_alert = self.test_temperature(TEMP_ALERT_LOW - 2, send_email=False)
+        has_alert = self.test_temperature(TEMP_ALERT_LOW - 2)
         if has_alert:
             _, msg = self.alert_system.check_temperature(TEMP_ALERT_LOW - 2)
             all_alerts.append(msg)
 
         # Test high CO2
         print(f"\n3. HIGH CO2 TEST ({CO2_ALERT_HIGH + 100} ppm)")
-        has_alert = self.test_co2(CO2_ALERT_HIGH + 100, send_email=False)
+        has_alert = self.test_co2(CO2_ALERT_HIGH + 100)
         if has_alert:
             _, msg = self.alert_system.check_co2(CO2_ALERT_HIGH + 100)
             all_alerts.append(msg)
 
         # Test high humidity
         print(f"\n4. HIGH HUMIDITY TEST ({HUMIDITY_ALERT_HIGH + 5}%)")
-        has_alert = self.test_humidity(HUMIDITY_ALERT_HIGH + 5, send_email=False)
+        has_alert = self.test_humidity(HUMIDITY_ALERT_HIGH + 5)
         if has_alert:
             _, msg = self.alert_system.check_humidity(HUMIDITY_ALERT_HIGH + 5)
             all_alerts.append(msg)
 
         # Test low humidity
         print(f"\n5. LOW HUMIDITY TEST ({HUMIDITY_ALERT_LOW - 5}%)")
-        has_alert = self.test_humidity(HUMIDITY_ALERT_LOW - 5, send_email=False)
+        has_alert = self.test_humidity(HUMIDITY_ALERT_LOW - 5)
         if has_alert:
             _, msg = self.alert_system.check_humidity(HUMIDITY_ALERT_LOW - 5)
             all_alerts.append(msg)
 
         # Test low moisture
         print(f"\n6. LOW MOISTURE TEST ({MOISTURE_ALERT_LOW - 5}%)")
-        has_alert = self.test_moisture(MOISTURE_ALERT_LOW - 5, send_email=False)
+        has_alert = self.test_moisture(MOISTURE_ALERT_LOW - 5)
         if has_alert:
             _, msg = self.alert_system.check_moisture(MOISTURE_ALERT_LOW - 5)
             all_alerts.append(msg)
 
-        # Send combined email if requested
+        # Summary and combined email
         print(f"\n{'='*70}")
         print(f"Summary: {len(all_alerts)} alerts triggered")
         print(f"{'='*70}")
 
-        if all_alerts and send_email:
+        if all_alerts:
             print("\nSending combined test email...")
             self._send_test_email(all_alerts)
 
         return len(all_alerts)
 
-    def _send_test_email(self, alert_messages, co2=None, temp=None, humidity=None, moisture=None):
+    def _send_test_email(self, alert_messages, co2=None, temp_f=None, humidity=None, moisture=None):
         """Send a test alert email to recipients configured in config.py."""
         try:
             # Filter out None values from alert messages
@@ -194,7 +176,7 @@ class AlertTester:
             body = format_alert_body(
                 alert_messages,
                 co2=co2,
-                temp=temp,
+                temp=temp_f,
                 humidity=humidity,
                 moisture=moisture,
             )
@@ -241,9 +223,8 @@ class AlertTester:
             print("8. Test Humidity Custom")
             print("9. Test Moisture Low")
             print("10. Test Moisture Custom")
-            print("11. Test ALL Limits (No Email)")
-            print("12. Test ALL Limits (With Email)")
-            print("13. View Current Thresholds")
+            print("11. Test ALL Limits")
+            print("12. View Current Thresholds")
             print("0. Exit")
             print(f"{'='*60}")
 
@@ -262,8 +243,7 @@ class AlertTester:
             elif choice == "3":
                 try:
                     temp = float(input(f"Enter temperature (°F): "))
-                    ask_email = input("Send email? (y/n): ").lower() == "y"
-                    self.test_temperature(temp, send_email=ask_email)
+                    self.test_temperature(temp)
                 except ValueError:
                     print("Invalid input")
 
@@ -273,8 +253,7 @@ class AlertTester:
             elif choice == "5":
                 try:
                     co2 = float(input("Enter CO2 (ppm): "))
-                    ask_email = input("Send email? (y/n): ").lower() == "y"
-                    self.test_co2(co2, send_email=ask_email)
+                    self.test_co2(co2)
                 except ValueError:
                     print("Invalid input")
 
@@ -287,8 +266,7 @@ class AlertTester:
             elif choice == "8":
                 try:
                     humidity = float(input("Enter humidity (%): "))
-                    ask_email = input("Send email? (y/n): ").lower() == "y"
-                    self.test_humidity(humidity, send_email=ask_email)
+                    self.test_humidity(humidity)
                 except ValueError:
                     print("Invalid input")
 
@@ -298,18 +276,14 @@ class AlertTester:
             elif choice == "10":
                 try:
                     moisture = float(input("Enter moisture (%): "))
-                    ask_email = input("Send email? (y/n): ").lower() == "y"
-                    self.test_moisture(moisture, send_email=ask_email)
+                    self.test_moisture(moisture)
                 except ValueError:
                     print("Invalid input")
 
             elif choice == "11":
-                self.test_all_at_limits(send_email=False)
+                self.test_all_at_limits()
 
             elif choice == "12":
-                self.test_all_at_limits(send_email=True)
-
-            elif choice == "13":
                 self.show_thresholds()
 
             else:
