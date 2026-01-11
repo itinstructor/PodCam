@@ -10,6 +10,7 @@ Usage:
 """
 
 import sys
+import argparse
 from alert_system import AlertSystem, format_alert_body
 from alerts_config import (
     TEMP_ALERT_HIGH,
@@ -225,6 +226,7 @@ class AlertTester:
             print("10. Test Moisture Custom")
             print("11. Test ALL Limits")
             print("12. View Current Thresholds")
+            print("13. Test Repeat Violation Limit + Recovery")
             print("0. Exit")
             print(f"{'='*60}")
 
@@ -286,6 +288,9 @@ class AlertTester:
             elif choice == "12":
                 self.show_thresholds()
 
+            elif choice == "13":
+                self.test_repeat_violation_limit()
+
             else:
                 print("Invalid option")
 
@@ -300,11 +305,55 @@ class AlertTester:
         print(f"Moisture:     < {MOISTURE_ALERT_LOW}%")
         print(f"{'='*60}\n")
 
+    def test_repeat_violation_limit(self):
+        """Simulate repeated violations and recovery to verify 3-send limit."""
+        print(f"\n{'='*60}")
+        print("REPEAT VIOLATION LIMIT TEST (Temperature)")
+        print(f"{'='*60}")
+
+        violation_value = TEMP_ALERT_HIGH + 5
+        recovery_value = TEMP_ALERT_HIGH - 2
+
+        sends = 0
+        messages = []
+
+        # Simulate 5 consecutive intervals with violation
+        for i in range(1, 6):
+            has_alert, msg = self.alert_system.check_temperature(violation_value)
+            if has_alert and msg:
+                messages.append(msg)
+                sends += 1
+            print(f"Interval {i}: has_alert={has_alert}, msg={msg}")
+
+        print(f"Total sends during violation: {sends} (expected <= 3)")
+
+        # Now simulate recovery
+        has_alert, msg = self.alert_system.check_temperature(recovery_value)
+        print(f"Recovery: has_alert={has_alert}, msg={msg}")
+
+        if messages:
+            print("\nSending combined test email for violation messages...")
+            self._send_test_email(messages, temp_f=violation_value)
+        if has_alert and msg:
+            print("\nSending recovery information email...")
+            self._send_test_email([msg], temp_f=recovery_value)
+
 
 def main():
-    """Main entry point - shows interactive menu."""
+    """Main entry point - menu or direct test via CLI args."""
+    parser = argparse.ArgumentParser(description="Alert system tests")
+    parser.add_argument(
+        "--repeat-limit",
+        action="store_true",
+        help="Run the repeat violation limit + recovery test",
+    )
+    args = parser.parse_args()
+
     tester = AlertTester()
-    tester.interactive_menu()
+    if args.repeat_limit:
+        tester.test_repeat_violation_limit()
+    else:
+        tester.interactive_menu()
 
 
 if __name__ == "__main__":

@@ -19,6 +19,11 @@ from alerts_config import (
     MOISTURE_ALERT_LOW,
     MOISTURE_ALERT_ENABLED,
     ALERT_DEDUP,
+    MAX_ALERTS_PER_VIOLATION,
+    MAX_TEMP_ALERTS_PER_VIOLATION,
+    MAX_CO2_ALERTS_PER_VIOLATION,
+    MAX_HUMIDITY_ALERTS_PER_VIOLATION,
+    MAX_MOISTURE_ALERTS_PER_VIOLATION,
 )
 
 logger = setup_sensor_logger()
@@ -36,10 +41,26 @@ class AlertSystem:
         # Track active alerts by key to enable deduplication
         # Format: {alert_key: True} if currently violated
         self.active_alerts = {}
+        # Track how many alerts have been sent during the current violation
+        # Format: {alert_key: int}
+        self.alert_counts = {}
+
+    def _max_for_key(self, alert_key: str) -> int:
+        """Return per-sensor cap for given alert key, falling back to global cap."""
+        mapping = {
+            "temp_high": MAX_TEMP_ALERTS_PER_VIOLATION or MAX_ALERTS_PER_VIOLATION,
+            "temp_low": MAX_TEMP_ALERTS_PER_VIOLATION or MAX_ALERTS_PER_VIOLATION,
+            "co2_high": MAX_CO2_ALERTS_PER_VIOLATION or MAX_ALERTS_PER_VIOLATION,
+            "humidity_high": MAX_HUMIDITY_ALERTS_PER_VIOLATION or MAX_ALERTS_PER_VIOLATION,
+            "humidity_low": MAX_HUMIDITY_ALERTS_PER_VIOLATION or MAX_ALERTS_PER_VIOLATION,
+            "moisture_low": MAX_MOISTURE_ALERTS_PER_VIOLATION or MAX_ALERTS_PER_VIOLATION,
+        }
+        return mapping.get(alert_key, MAX_ALERTS_PER_VIOLATION)
 
     def reset(self):
-        """Reset all active alerts (call after sending alert emails)."""
+        """Reset all alert state (use when starting fresh/testing)."""
         self.active_alerts.clear()
+        self.alert_counts.clear()
 
     def check_temperature(self, temp_f):
         """
@@ -61,20 +82,42 @@ class AlertSystem:
         # Check high temperature
         if temp_f > TEMP_ALERT_HIGH:
             alert_key = "temp_high"
-            if not ALERT_DEDUP or not self.active_alerts.get(alert_key):
-                alerts.append(f"🌡️ HIGH TEMPERATURE: {temp_f:.1f}°F (threshold: {TEMP_ALERT_HIGH}°F)")
+            # If in violation, send up to per-sensor cap times
+            count = self.alert_counts.get(alert_key, 0)
+            max_cap = self._max_for_key(alert_key)
+            if (not ALERT_DEDUP or not self.active_alerts.get(alert_key)) or count < max_cap:
+                if count < max_cap:
+                    alerts.append(
+                        f"🌡️ HIGH TEMPERATURE: {temp_f:.1f}°F (threshold: {TEMP_ALERT_HIGH}°F)"
+                    )
+                    self.alert_counts[alert_key] = count + 1
                 self.active_alerts[alert_key] = True
         else:
-            self.active_alerts.pop("temp_high", None)
+            # Recovery: previously violated, now back to normal
+            if self.active_alerts.pop("temp_high", None):
+                alerts.append(
+                    f"ℹ️ Temperature normalized: {temp_f:.1f}°F (below {TEMP_ALERT_HIGH}°F)"
+                )
+                self.alert_counts["temp_high"] = 0
 
         # Check low temperature
         if temp_f < TEMP_ALERT_LOW:
             alert_key = "temp_low"
-            if not ALERT_DEDUP or not self.active_alerts.get(alert_key):
-                alerts.append(f"🌡️ LOW TEMPERATURE: {temp_f:.1f}°F (threshold: {TEMP_ALERT_LOW}°F)")
+            count = self.alert_counts.get(alert_key, 0)
+            max_cap = self._max_for_key(alert_key)
+            if (not ALERT_DEDUP or not self.active_alerts.get(alert_key)) or count < max_cap:
+                if count < max_cap:
+                    alerts.append(
+                        f"🌡️ LOW TEMPERATURE: {temp_f:.1f}°F (threshold: {TEMP_ALERT_LOW}°F)"
+                    )
+                    self.alert_counts[alert_key] = count + 1
                 self.active_alerts[alert_key] = True
         else:
-            self.active_alerts.pop("temp_low", None)
+            if self.active_alerts.pop("temp_low", None):
+                alerts.append(
+                    f"ℹ️ Temperature normalized: {temp_f:.1f}°F (above {TEMP_ALERT_LOW}°F)"
+                )
+                self.alert_counts["temp_low"] = 0
 
         if alerts:
             return True, " | ".join(alerts)
@@ -95,12 +138,20 @@ class AlertSystem:
 
         if co2_ppm > CO2_ALERT_HIGH:
             alert_key = "co2_high"
-            if not ALERT_DEDUP or not self.active_alerts.get(alert_key):
-                msg = f"⚠️ HIGH CO2: {co2_ppm:.0f} ppm (threshold: {CO2_ALERT_HIGH} ppm)"
+            count = self.alert_counts.get(alert_key, 0)
+            max_cap = self._max_for_key(alert_key)
+            if (not ALERT_DEDUP or not self.active_alerts.get(alert_key)) or count < max_cap:
+                if count < max_cap:
+                    msg = f"⚠️ HIGH CO2: {co2_ppm:.0f} ppm (threshold: {CO2_ALERT_HIGH} ppm)"
+                    self.alert_counts[alert_key] = count + 1
+                    self.active_alerts[alert_key] = True
+                    return True, msg
                 self.active_alerts[alert_key] = True
-                return True, msg
         else:
-            self.active_alerts.pop("co2_high", None)
+            if self.active_alerts.pop("co2_high", None):
+                msg = f"ℹ️ CO2 normalized: {co2_ppm:.0f} ppm (below {CO2_ALERT_HIGH} ppm)"
+                self.alert_counts["co2_high"] = 0
+                return True, msg
 
         return False, None
 
@@ -122,20 +173,40 @@ class AlertSystem:
         # Check high humidity
         if humidity_pct > HUMIDITY_ALERT_HIGH:
             alert_key = "humidity_high"
-            if not ALERT_DEDUP or not self.active_alerts.get(alert_key):
-                alerts.append(f"💧 HIGH HUMIDITY: {humidity_pct:.1f}% (threshold: {HUMIDITY_ALERT_HIGH}%)")
+            count = self.alert_counts.get(alert_key, 0)
+            max_cap = self._max_for_key(alert_key)
+            if (not ALERT_DEDUP or not self.active_alerts.get(alert_key)) or count < max_cap:
+                if count < max_cap:
+                    alerts.append(
+                        f"💧 HIGH HUMIDITY: {humidity_pct:.1f}% (threshold: {HUMIDITY_ALERT_HIGH}%)"
+                    )
+                    self.alert_counts[alert_key] = count + 1
                 self.active_alerts[alert_key] = True
         else:
-            self.active_alerts.pop("humidity_high", None)
+            if self.active_alerts.pop("humidity_high", None):
+                alerts.append(
+                    f"ℹ️ Humidity normalized: {humidity_pct:.1f}% (below {HUMIDITY_ALERT_HIGH}%)"
+                )
+                self.alert_counts["humidity_high"] = 0
 
         # Check low humidity
         if humidity_pct < HUMIDITY_ALERT_LOW:
             alert_key = "humidity_low"
-            if not ALERT_DEDUP or not self.active_alerts.get(alert_key):
-                alerts.append(f"💧 LOW HUMIDITY: {humidity_pct:.1f}% (threshold: {HUMIDITY_ALERT_LOW}%)")
+            count = self.alert_counts.get(alert_key, 0)
+            max_cap = self._max_for_key(alert_key)
+            if (not ALERT_DEDUP or not self.active_alerts.get(alert_key)) or count < max_cap:
+                if count < max_cap:
+                    alerts.append(
+                        f"💧 LOW HUMIDITY: {humidity_pct:.1f}% (threshold: {HUMIDITY_ALERT_LOW}%)"
+                    )
+                    self.alert_counts[alert_key] = count + 1
                 self.active_alerts[alert_key] = True
         else:
-            self.active_alerts.pop("humidity_low", None)
+            if self.active_alerts.pop("humidity_low", None):
+                alerts.append(
+                    f"ℹ️ Humidity normalized: {humidity_pct:.1f}% (above {HUMIDITY_ALERT_LOW}%)"
+                )
+                self.alert_counts["humidity_low"] = 0
 
         if alerts:
             return True, " | ".join(alerts)
@@ -156,12 +227,20 @@ class AlertSystem:
 
         if moisture_pct < MOISTURE_ALERT_LOW:
             alert_key = "moisture_low"
-            if not ALERT_DEDUP or not self.active_alerts.get(alert_key):
-                msg = f"🌱 LOW SOIL MOISTURE: {moisture_pct:.1f}% (threshold: {MOISTURE_ALERT_LOW}%)"
+            count = self.alert_counts.get(alert_key, 0)
+            max_cap = self._max_for_key(alert_key)
+            if (not ALERT_DEDUP or not self.active_alerts.get(alert_key)) or count < max_cap:
+                if count < max_cap:
+                    msg = f"🌱 LOW SOIL MOISTURE: {moisture_pct:.1f}% (threshold: {MOISTURE_ALERT_LOW}%)"
+                    self.alert_counts[alert_key] = count + 1
+                    self.active_alerts[alert_key] = True
+                    return True, msg
                 self.active_alerts[alert_key] = True
-                return True, msg
         else:
-            self.active_alerts.pop("moisture_low", None)
+            if self.active_alerts.pop("moisture_low", None):
+                msg = f"ℹ️ Soil moisture normalized: {moisture_pct:.1f}% (above {MOISTURE_ALERT_LOW}%)"
+                self.alert_counts["moisture_low"] = 0
+                return True, msg
 
         return False, None
 

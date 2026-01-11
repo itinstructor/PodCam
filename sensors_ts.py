@@ -35,6 +35,7 @@ from config import (
 
 # Import alert system
 from alert_system import AlertSystem, format_alert_body
+from alerts_config import ALERT_REALTIME
 
 # Setup logging for sensors module
 logger = setup_sensor_logger()
@@ -480,6 +481,47 @@ def main():
                 if moisture_pct is not None:
                     moisture_readings.append(moisture_pct)
 
+                # Optional: real-time alerting based on individual readings
+                if ALERT_REALTIME:
+                    try:
+                        rt_alerts, rt_messages = alert_system.check_all(
+                            co2_ppm=co2,
+                            temp_f=temp_f,
+                            humidity_pct=humidity,
+                            moisture_pct=moisture_pct,
+                        )
+                        if rt_alerts:
+                            logger.warning(
+                                f"REALTIME ALERT: {' | '.join(rt_messages)}"
+                            )
+
+                            # Build alert body using current readings
+                            rt_body = format_alert_body(
+                                rt_messages,
+                                co2=co2,
+                                temp=temp_f,
+                                humidity=humidity,
+                                moisture=moisture_pct,
+                            )
+
+                            # Subject: 'Alert Cleared' if all messages are informational
+                            only_info_rt = all(str(m).strip().startswith("ℹ️") for m in rt_messages if m)
+                            subject_type_rt = "Alert Cleared" if only_info_rt else "Sensor Threshold"
+
+                            sent = email_notifier.send_alert(
+                                recipient_email=None,
+                                alert_type=subject_type_rt,
+                                alert_message=rt_body,
+                            )
+                            if sent:
+                                logger.info("📧 Real-time alert email sent")
+                            else:
+                                logger.debug("Real-time alert email failed")
+
+                            # Do not reset here; AlertSystem enforces per-violation limits
+                    except Exception as e:
+                        logger.error(f"Error in real-time alerting: {e}")
+
                 # Send initial reading on startup
                 if not initial_reading_sent:
                     logger.info("Sending initial reading to ThingSpeak")
@@ -559,10 +601,9 @@ def main():
                     if has_alerts:
                         logger.warning(f"ALERT: {' | '.join(alert_messages)}")
                         try:
-                            # Format alert email subject from messages
-                            alert_type = " | ".join(
-                                [msg.split(":")[0] for msg in alert_messages]
-                            )
+                            # Subject: 'Alert Cleared' if all messages are informational
+                            only_info = all(str(m).strip().startswith("ℹ️") for m in alert_messages if m)
+                            subject_type = "Alert Cleared" if only_info else "Sensor Threshold"
 
                             # Format alert email body
                             alert_body = format_alert_body(
@@ -576,7 +617,7 @@ def main():
                             # Send alert email
                             if email_notifier.send_alert(
                                 recipient_email=None,
-                                alert_type="Sensor Threshold",
+                                alert_type=subject_type,
                                 alert_message=alert_body,
                             ):
                                 logger.info("📧 Alert email sent")
@@ -585,8 +626,7 @@ def main():
                         except Exception as e:
                             logger.error(f"Error sending alert email: {e}")
 
-                        # Reset alerts for next cycle
-                        alert_system.reset()
+                        # Do not reset here; AlertSystem handles recovery and limits
 
                     # Clear the reading lists for the next cycle
                     moisture_readings.clear()

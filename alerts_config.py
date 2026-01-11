@@ -29,3 +29,13 @@ ALERT_REALTIME = False
 # Dedup alerts - only send once per violation cycle
 # Prevents spam if threshold is violated for multiple averaging periods
 ALERT_DEDUP = True
+
+# Maximum number of alert emails to send per continuous violation.
+# After this limit, alerts pause until readings return to normal.
+MAX_ALERTS_PER_VIOLATION = 3
+
+# Optional per-sensor caps (override the global cap when set)
+MAX_TEMP_ALERTS_PER_VIOLATION = 3
+MAX_CO2_ALERTS_PER_VIOLATION = 3
+MAX_HUMIDITY_ALERTS_PER_VIOLATION = 3
+MAX_MOISTURE_ALERTS_PER_VIOLATION = 3
