@@ -67,18 +67,12 @@ class AlertSystem:
         """
         Check temperature against configured thresholds.
 
-        Args:
-            temp_f (float): Temperature in Fahrenheit
-
-        Returns:
-            tuple: (alert_triggered, alert_message)
-                alert_triggered (bool): True if threshold violated
-                alert_message (str): Human-readable alert message
-        """
-        if not TEMP_ALERT_ENABLED or temp_f is None:
-            return False, None
-
-        alerts = []
+        else:
+            if self.active_alerts.pop("moisture_low", None):
+                msg = f"ℹ️ Soil moisture normalized: {moisture_pct:.1f}% (above {MOISTURE_ALERT_LOW}%)"
+                self.alert_counts["moisture_low"] = 0
+                logger.info(f"Low moisture recovered to safe level: {moisture_pct:.1f}%")
+                return True, msg
 
         # Check high temperature
         if temp_f > TEMP_ALERT_HIGH:

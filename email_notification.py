@@ -670,13 +670,17 @@ class EmailNotifier:
             recipient_list = self._normalize_recipients(recipients)
 
             logger.debug(f"Attempting SMTP connection to {self.smtp_server}:{self.smtp_port}")
-            
-            # Create SMTP session
-            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+
+            # Create SMTP session with timeout from config for quicker failures
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=EMAIL_TIMEOUT)
+
+            # Required greeting before and after STARTTLS for stricter servers
+            server.ehlo()
 
             # Enable TLS encryption
             logger.debug("Initiating TLS encryption")
             server.starttls()
+            server.ehlo()
 
             # Login with sender credentials
             logger.debug(f"Authenticating with Gmail account: {self.sender_email}")
