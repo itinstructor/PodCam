@@ -1,1 +1,1 @@
-git pull https://github.com/itinstructor/PodCam.git
+git pull https://github.com/wnccstem/podcam.git
